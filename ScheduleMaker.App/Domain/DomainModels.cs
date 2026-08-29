@@ -5,7 +5,7 @@ public sealed class Participant
     public Participant(Guid id, string name, int sortOrder)
     {
         Id = id;
-        Name = name;
+        Name = DomainValidation.RequireNonEmpty(name, nameof(name));
         SortOrder = sortOrder;
     }
 
@@ -21,7 +21,7 @@ public sealed class TaskDefinition
     public TaskDefinition(Guid id, string name, int sortOrder)
     {
         Id = id;
-        Name = name;
+        Name = DomainValidation.RequireNonEmpty(name, nameof(name));
         SortOrder = sortOrder;
     }
 
@@ -37,8 +37,15 @@ public sealed class EventType
     public EventType(Guid id, string name, IEnumerable<TaskDefinition> tasks)
     {
         Id = id;
-        Name = name;
-        Tasks = (tasks ?? throw new ArgumentNullException(nameof(tasks))).ToList().AsReadOnly();
+        Name = DomainValidation.RequireNonEmpty(name, nameof(name));
+
+        var orderedTasks = (tasks ?? throw new ArgumentNullException(nameof(tasks))).ToList();
+        if (orderedTasks.Count == 0)
+        {
+            throw new ArgumentException("An event type must contain at least one task.", nameof(tasks));
+        }
+
+        Tasks = orderedTasks.AsReadOnly();
     }
 
     public Guid Id { get; }
@@ -46,6 +53,19 @@ public sealed class EventType
     public string Name { get; }
 
     public IReadOnlyList<TaskDefinition> Tasks { get; }
+}
+
+internal static class DomainValidation
+{
+    public static string RequireNonEmpty(string value, string paramName)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            throw new ArgumentException("Value cannot be null, empty, or whitespace.", paramName);
+        }
+
+        return value;
+    }
 }
 
 public sealed class ScheduledEvent
@@ -103,7 +123,7 @@ public sealed class GeneratedScheduleEvent
         ScheduledEventId = scheduledEventId;
         Date = date;
         EventTypeId = eventTypeId;
-        EventTypeNameSnapshot = eventTypeNameSnapshot;
+        EventTypeNameSnapshot = DomainValidation.RequireNonEmpty(eventTypeNameSnapshot, nameof(eventTypeNameSnapshot));
         EventDescriptionSnapshot = eventDescriptionSnapshot;
         Assignments = (assignments ?? throw new ArgumentNullException(nameof(assignments))).ToList().AsReadOnly();
     }
@@ -130,9 +150,9 @@ public sealed class GeneratedTaskAssignment
         string participantNameSnapshot)
     {
         TaskDefinitionId = taskDefinitionId;
-        TaskNameSnapshot = taskNameSnapshot;
+        TaskNameSnapshot = DomainValidation.RequireNonEmpty(taskNameSnapshot, nameof(taskNameSnapshot));
         ParticipantId = participantId;
-        ParticipantNameSnapshot = participantNameSnapshot;
+        ParticipantNameSnapshot = DomainValidation.RequireNonEmpty(participantNameSnapshot, nameof(participantNameSnapshot));
     }
 
     public Guid TaskDefinitionId { get; }
@@ -148,8 +168,13 @@ public sealed class ParticipantAssignmentTotal
 {
     public ParticipantAssignmentTotal(Guid participantId, string participantNameSnapshot, int assignmentCount)
     {
+        if (assignmentCount < 0)
+        {
+            throw new ArgumentOutOfRangeException(nameof(assignmentCount), "Assignment count cannot be negative.");
+        }
+
         ParticipantId = participantId;
-        ParticipantNameSnapshot = participantNameSnapshot;
+        ParticipantNameSnapshot = DomainValidation.RequireNonEmpty(participantNameSnapshot, nameof(participantNameSnapshot));
         AssignmentCount = assignmentCount;
     }
 

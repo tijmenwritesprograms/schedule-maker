@@ -18,6 +18,24 @@ public sealed class DomainModelTests
     }
 
     [Fact]
+    public void EventType_Requires_At_Least_One_Task()
+    {
+        Assert.Throws<ArgumentException>(() => new EventType(Guid.NewGuid(), "Practice", []));
+    }
+
+    [Fact]
+    public void EventType_Requires_Task_Collection()
+    {
+        Assert.Throws<ArgumentNullException>(() => new EventType(Guid.NewGuid(), "Practice", null!));
+    }
+
+    [Fact]
+    public void Participant_Requires_Non_Empty_Name()
+    {
+        Assert.Throws<ArgumentException>(() => new Participant(Guid.NewGuid(), "   ", 0));
+    }
+
+    [Fact]
     public void GeneratedSchedule_Snapshots_Are_Value_Based()
     {
         var participant = new Participant(Guid.NewGuid(), "Alex", 0);
@@ -40,9 +58,11 @@ public sealed class DomainModelTests
 
         sourceEventDescription = "Changed description";
         participant = new Participant(participant.Id, "Taylor", participant.SortOrder);
+        task = new TaskDefinition(task.Id, "Equipment", task.SortOrder);
 
         Assert.Equal("Game Night", generatedEvent.EventTypeNameSnapshot);
         Assert.Equal("Evening game", generatedEvent.EventDescriptionSnapshot);
+        Assert.Equal("Drinks", generatedEvent.Assignments[0].TaskNameSnapshot);
         Assert.Equal("Alex", generatedEvent.Assignments[0].ParticipantNameSnapshot);
     }
 
@@ -79,5 +99,11 @@ public sealed class DomainModelTests
         Assert.Single(state.ScheduledEvents);
         Assert.Same(generatedSchedule, state.LatestSchedule);
         Assert.True(state.IsScheduleStale);
+    }
+
+    [Fact]
+    public void ParticipantAssignmentTotal_Requires_Non_Negative_Count()
+    {
+        Assert.Throws<ArgumentOutOfRangeException>(() => new ParticipantAssignmentTotal(Guid.NewGuid(), "Alex", -1));
     }
 }
