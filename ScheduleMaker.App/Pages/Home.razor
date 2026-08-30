@@ -10,6 +10,11 @@
     <p class="intro">Add your participants, event types, and dated events to get started.</p>
 </section>
 
+@if (!string.IsNullOrWhiteSpace(StateStore.PersistenceError))
+{
+    <p class="error-message" role="alert">@StateStore.PersistenceError</p>
+}
+
 <section class="setup-panel" aria-labelledby="setup-title">
     <h2 id="setup-title">Your schedule</h2>
     @if (StateStore.Current.Participants.Count == 0 &&
