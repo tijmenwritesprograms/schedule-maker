@@ -182,17 +182,21 @@ public sealed class ConfigurationStateService(ApplicationStateStore stateStore)
             return ApplicationOperationResult.Failure("Event type was not found.");
         }
 
-        if (description is not null && description.Length > 500)
+        var normalizedDescription = NormalizeOptionalText(description);
+
+        if (normalizedDescription is not null && normalizedDescription.Length > 500)
         {
             return ApplicationOperationResult.Failure("Description cannot be longer than 500 characters.");
         }
 
-        var scheduledEvents = stateStore.Current.ScheduledEvents.ToList();
+        var scheduledEvents = stateStore.Current.ScheduledEvents
+            .OrderBy(existingEvent => existingEvent.Date)
+            .ToList();
         var scheduledEvent = new ScheduledEvent(
             Guid.NewGuid(),
             date,
             eventTypeId,
-            NormalizeOptionalText(description));
+            normalizedDescription);
 
         var insertIndex = scheduledEvents.FindLastIndex(existingEvent => existingEvent.Date <= date) + 1;
         scheduledEvents.Insert(insertIndex, scheduledEvent);
