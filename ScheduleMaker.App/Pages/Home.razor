@@ -192,6 +192,10 @@
     else
     {
         <form class="event-form" @onsubmit="AddScheduledEventAsync" @onsubmit:preventDefault="true">
+            @if (!string.IsNullOrWhiteSpace(scheduledEventErrorMessage))
+            {
+                <p class="field-error" role="alert">@scheduledEventErrorMessage</p>
+            }
             <div class="event-form-field">
                 <label for="scheduled-event-date">Date</label>
                 <input id="scheduled-event-date"
@@ -230,10 +234,6 @@
                           @bind="scheduledEventDescription"
                           aria-describedby="scheduled-event-description-help"></textarea>
                 <p id="scheduled-event-description-help" class="field-help">Up to 500 characters.</p>
-                @if (!string.IsNullOrWhiteSpace(scheduledEventDescriptionErrorMessage))
-                {
-                    <p class="field-error" role="alert">@scheduledEventDescriptionErrorMessage</p>
-                }
             </div>
             <button type="submit" class="primary-action">Add event</button>
         </form>
@@ -296,7 +296,7 @@
     private string scheduledEventDescription = string.Empty;
     private string? scheduledEventDateErrorMessage;
     private string? scheduledEventTypeErrorMessage;
-    private string? scheduledEventDescriptionErrorMessage;
+    private string? scheduledEventErrorMessage;
     private string? removeScheduledEventErrorMessage;
     private IReadOnlyList<ScheduledEvent> scheduledEvents = [];
 
@@ -402,7 +402,7 @@
     {
         scheduledEventDateErrorMessage = null;
         scheduledEventTypeErrorMessage = null;
-        scheduledEventDescriptionErrorMessage = null;
+        scheduledEventErrorMessage = null;
 
         if (scheduledEventDate is null)
         {
@@ -421,14 +421,13 @@
         var result = await ConfigurationStateService.AddScheduledEventAsync(date, eventTypeId, scheduledEventDescription);
         if (result.IsSuccess)
         {
-            removeScheduledEventErrorMessage = null;
             scheduledEventDate = null;
             scheduledEventDescription = string.Empty;
             RefreshScheduledEvents();
             return;
         }
 
-        scheduledEventDescriptionErrorMessage = result.ErrorMessage;
+        scheduledEventErrorMessage = result.ErrorMessage;
     }
 
     private async Task RemoveScheduledEventAsync(Guid scheduledEventId)
