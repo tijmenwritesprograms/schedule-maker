@@ -20,7 +20,7 @@ public sealed class HomePageTests
         Assert.Contains("No event types yet", cut.Markup);
         Assert.Contains("No dated events yet", cut.Markup);
         Assert.Contains("Add at least one participant before generating a schedule.", cut.Markup);
-        Assert.True(cut.FindAll("button.primary-action")[1].HasAttribute("disabled"));
+        Assert.True(cut.Find("#generate-schedule").HasAttribute("disabled"));
     }
 
     [Fact]
@@ -48,7 +48,7 @@ public sealed class HomePageTests
         cut.Find("#scheduled-event-type").Change(eventType.Id.ToString());
         cut.Find("#scheduled-event-description").Change("Home match");
         cut.Find("form.event-form").Submit();
-        cut.FindAll("button.primary-action")[1].Click();
+        cut.Find("#generate-schedule").Click();
 
         Assert.Contains("Current schedule", cut.Markup);
         Assert.Contains("September 1, 2026", cut.Markup);
@@ -123,7 +123,9 @@ public sealed class HomePageTests
     {
         var input = cut.Find($"#task-name-{eventTypeId}");
         input.Input(name);
-        input.ParentElement!.ParentElement!.Submit();
+        cut.FindAll("form.task-form")
+            .Single(form => form.QuerySelector($"#task-name-{eventTypeId}") is not null)
+            .Submit();
     }
 
     private static BunitContext CreateContext()
