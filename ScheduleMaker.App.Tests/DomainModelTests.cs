@@ -18,9 +18,11 @@ public sealed class DomainModelTests
     }
 
     [Fact]
-    public void EventType_Requires_At_Least_One_Task()
+    public void EventType_Allows_Empty_Task_List_Until_Tasks_Are_Added()
     {
-        Assert.Throws<ArgumentException>(() => new EventType(Guid.NewGuid(), "Practice", []));
+        var eventType = new EventType(Guid.NewGuid(), "Practice", []);
+
+        Assert.Empty(eventType.Tasks);
     }
 
     [Fact]

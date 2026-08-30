@@ -132,6 +132,26 @@ public sealed class ConfigurationStateServiceTests
     }
 
     [Fact]
+    public async Task AddEventType_Creates_Empty_Type_And_AddTask_Preserves_Order()
+    {
+        var persistence = new FakePersistence(ApplicationState.Empty);
+        var stateStore = new ApplicationStateStore(persistence);
+        await stateStore.InitializeAsync();
+        var service = new ConfigurationStateService(stateStore);
+
+        var addEventTypeResult = await service.AddEventTypeAsync("  Practice  ");
+        var eventType = stateStore.Current.EventTypes.Single();
+        var firstTaskResult = await service.AddTaskAsync(eventType.Id, "  Setup  ");
+        var secondTaskResult = await service.AddTaskAsync(eventType.Id, "Clean up");
+
+        Assert.True(addEventTypeResult.IsSuccess);
+        Assert.True(firstTaskResult.IsSuccess);
+        Assert.True(secondTaskResult.IsSuccess);
+        Assert.Equal(["Setup", "Clean up"], stateStore.Current.EventTypes.Single().Tasks.Select(task => task.Name));
+        Assert.Equal(3, persistence.SaveCount);
+    }
+
+    [Fact]
     public async Task AddScheduledEvent_Rejects_Description_Longer_Than_500_Characters()
     {
         var task = new TaskDefinition(Guid.NewGuid(), "Setup", 0);
@@ -152,7 +172,7 @@ public sealed class ConfigurationStateServiceTests
     }
 
     [Fact]
-    public async Task RemoveTask_Rejects_Last_Task_In_Event_Type()
+    public async Task RemoveTask_Allows_Event_Type_To_Become_Unusable()
     {
         var task = new TaskDefinition(Guid.NewGuid(), "Only task", 0);
         var eventType = new EventType(Guid.NewGuid(), "Practice", [task]);
@@ -163,9 +183,8 @@ public sealed class ConfigurationStateServiceTests
 
         var result = await service.RemoveTaskAsync(eventType.Id, task.Id);
 
-        Assert.False(result.IsSuccess);
-        Assert.Equal("An event type must contain at least one task.", result.ErrorMessage);
-        Assert.Single(stateStore.Current.EventTypes[0].Tasks);
+        Assert.True(result.IsSuccess);
+        Assert.Empty(stateStore.Current.EventTypes[0].Tasks);
     }
 
     [Fact]

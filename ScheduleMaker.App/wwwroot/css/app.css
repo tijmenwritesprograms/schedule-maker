@@ -244,6 +244,56 @@
         padding: 0.875rem 1rem;
     }
 
+    .event-type-list {
+        display: grid;
+        gap: 1rem;
+    }
+
+    .event-type-card {
+        border: 1px solid #e5e7eb;
+        border-radius: 0.75rem;
+        padding: 1rem;
+    }
+
+    .event-type-header,
+    .task-list li {
+        align-items: center;
+        display: flex;
+        gap: 1rem;
+        justify-content: space-between;
+    }
+
+    .event-type-header h3 {
+        margin: 0;
+    }
+
+    .task-list {
+        display: grid;
+        gap: 0.5rem;
+        margin: 1rem 0;
+        padding-left: 1.5rem;
+    }
+
+    .task-form {
+        margin-top: 1rem;
+    }
+
+    .task-form label {
+        display: block;
+        font-weight: 600;
+        margin-bottom: 0.5rem;
+    }
+
+    .task-form-controls {
+        align-items: center;
+        display: flex;
+        gap: 0.75rem;
+    }
+
+    .task-form-controls .participant-input {
+        flex: 1;
+    }
+
     .validation-summary {
         color: #b91c1c;
         margin: 1rem 0 0;
@@ -269,7 +319,10 @@
 
 @media (max-width: 640px) {
     .participant-form,
-    .participant-list-item {
+    .participant-list-item,
+    .event-type-header,
+    .task-list li,
+    .task-form-controls {
         align-items: stretch;
         flex-direction: column;
     }
