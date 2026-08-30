@@ -4,10 +4,6 @@
     box-sizing: border-box;
 }
 
-html {
-    min-width: 320px;
-}
-
 body {
     background: #f8fafc;
     color: #111827;
@@ -27,12 +23,27 @@ textarea {
     outline: 1px solid #26b050;
 }
 
+.skip-link {
+    background: white;
+    border: 2px solid #1d4ed8;
+    color: #1e3a8a;
+    left: 1rem;
+    padding: 0.5rem 0.75rem;
+    position: absolute;
+    top: -4rem;
+    z-index: 1001;
+}
+
+.skip-link:focus {
+    top: 1rem;
+}
+
 .invalid {
     outline: 1px solid red;
 }
 
 .validation-message {
-    color: red;
+    color: #b91c1c;
 }
 
 #blazor-error-ui {
@@ -222,6 +233,7 @@ textarea {
 
     .participant-field {
         flex: 1 1 16rem;
+        min-width: 0;
     }
 
     .participant-field label {
@@ -277,10 +289,22 @@ textarea {
         opacity: 0.6;
     }
 
+    .primary-action:not(:disabled):hover,
+    .primary-action:not(:disabled):active {
+        background: #1d4ed8;
+        border-color: #1d4ed8;
+    }
+
     .secondary-action {
         background: white;
         border: 1px solid #d1d5db;
         color: #1f2937;
+    }
+
+    .secondary-action:hover,
+    .secondary-action:active {
+        background: #f3f4f6;
+        border-color: #6b7280;
     }
 
     .primary-action:focus-visible,
@@ -288,13 +312,8 @@ textarea {
     .participant-input:focus-visible,
     .app-header a:focus-visible,
     .dismiss:focus-visible {
-        outline: 2px solid #2563eb;
+        outline: 2px solid #1d4ed8;
         outline-offset: 2px;
-    }
-
-    .participant-input:focus-visible,
-    .primary-action:focus-visible {
-        outline-color: #1d4ed8;
     }
 
     .participant-list {
@@ -522,12 +541,77 @@ textarea {
         color: #374151;
     }
 
+    @media (prefers-color-scheme: dark) {
+        body {
+            background: #111827;
+            color: #f9fafb;
+        }
+
+        .welcome-panel,
+        .setup-panel,
+        .secondary-action,
+        .participant-input {
+            background: #1f2937;
+            color: #f9fafb;
+        }
+
+        .welcome-panel,
+        .setup-panel,
+        .participant-list-item,
+        .event-type-card,
+        .scheduled-event-card,
+        .generated-schedule-event-card,
+        .assignment-total-list li {
+            border-color: #4b5563;
+        }
+
+        .intro,
+        .empty-state,
+        .section-description,
+        .field-help,
+        .scheduled-event-date,
+        .schedule-status-message,
+        .schedule-generated-at,
+        .generated-task-participant {
+            color: #d1d5db;
+        }
+
+        .secondary-action {
+            border-color: #6b7280;
+        }
+
+        .secondary-action:hover,
+        .secondary-action:active {
+            background: #374151;
+        }
+
+        .schedule-status-panel-current {
+            background: #172554;
+            border-color: #3b82f6;
+        }
+
+        .schedule-status-panel-stale {
+            background: #431407;
+            border-color: #fb923c;
+        }
+
+        .skip-link {
+            background: #1f2937;
+            color: #dbeafe;
+        }
+    }
+
     @media (prefers-reduced-motion: reduce) {
         *,
         *::before,
         *::after {
             scroll-behavior: auto !important;
+            animation-duration: 0.01ms !important;
             transition-duration: 0.01ms !important;
+        }
+
+        .loading-progress circle:last-child {
+            transition: none;
         }
     }
 
