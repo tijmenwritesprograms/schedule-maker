@@ -87,6 +87,33 @@ public sealed class ConfigurationStateService(ApplicationStateStore stateStore)
         return ApplicationOperationResult.Success();
     }
 
+    public async Task<ApplicationOperationResult> AddEventTypeAsync(
+        string eventTypeName,
+        CancellationToken cancellationToken = default)
+    {
+        var normalizedEventTypeName = NormalizeRequiredName(eventTypeName);
+        if (normalizedEventTypeName is null)
+        {
+            return ApplicationOperationResult.Failure("Event type name is required.");
+        }
+
+        if (stateStore.Current.EventTypes.Any(eventType => NameEquals(eventType.Name, normalizedEventTypeName)))
+        {
+            return ApplicationOperationResult.Failure("Event type names must be unique.");
+        }
+
+        var eventTypes = stateStore.Current.EventTypes.ToList();
+        eventTypes.Add(new EventType(Guid.NewGuid(), normalizedEventTypeName, []));
+
+        await ReplaceStateAsync(
+            participants: stateStore.Current.Participants,
+            eventTypes: eventTypes,
+            scheduledEvents: stateStore.Current.ScheduledEvents,
+            scheduleChanged: true,
+            cancellationToken);
+        return ApplicationOperationResult.Success();
+    }
+
     public async Task<ApplicationOperationResult> RemoveEventTypeAsync(Guid eventTypeId, CancellationToken cancellationToken = default)
     {
         var eventTypes = stateStore.Current.EventTypes.ToList();
@@ -154,11 +181,6 @@ public sealed class ConfigurationStateService(ApplicationStateStore stateStore)
         if (!removed)
         {
             return ApplicationOperationResult.Failure("Task was not found.");
-        }
-
-        if (tasks.Count == 0)
-        {
-            return ApplicationOperationResult.Failure("An event type must contain at least one task.");
         }
 
         eventTypes[eventTypeIndex] = new EventType(eventType.Id, eventType.Name, tasks);

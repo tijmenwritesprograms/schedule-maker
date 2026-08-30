@@ -40,11 +40,6 @@ public sealed class EventType
         Name = DomainValidation.RequireNonEmpty(name, nameof(name));
 
         var orderedTasks = (tasks ?? throw new ArgumentNullException(nameof(tasks))).ToList();
-        if (orderedTasks.Count == 0)
-        {
-            throw new ArgumentException("An event type must contain at least one task.", nameof(tasks));
-        }
-
         Tasks = orderedTasks.AsReadOnly();
     }
 
