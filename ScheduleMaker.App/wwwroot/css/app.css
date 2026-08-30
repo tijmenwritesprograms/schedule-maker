@@ -38,6 +38,15 @@ textarea {
     top: 1rem;
 }
 
+.app-header a:focus-visible,
+.dismiss:focus-visible,
+.primary-action:focus-visible,
+.secondary-action:focus-visible,
+.participant-input:focus-visible {
+    outline: 2px solid #1d4ed8;
+    outline-offset: 2px;
+}
+
 .invalid {
     outline: 1px solid red;
 }
@@ -305,15 +314,6 @@ textarea {
     .secondary-action:active {
         background: #f3f4f6;
         border-color: #6b7280;
-    }
-
-    .primary-action:focus-visible,
-    .secondary-action:focus-visible,
-    .participant-input:focus-visible,
-    .app-header a:focus-visible,
-    .dismiss:focus-visible {
-        outline: 2px solid #1d4ed8;
-        outline-offset: 2px;
     }
 
     .participant-list {
@@ -615,9 +615,9 @@ textarea {
         }
     }
 
-        .validation-summary li + li {
-            margin-top: 0.5rem;
-        }
+.validation-summary li + li {
+    margin-top: 0.5rem;
+}
 
     code {
         color: #c02d76;
