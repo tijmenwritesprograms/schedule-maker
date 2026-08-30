@@ -163,6 +163,24 @@ public sealed class ScheduleGenerationServiceTests
     }
 
     [Fact]
+    public void Generate_Sorts_Events_Chronologically_Even_When_Input_Is_Not()
+    {
+        var participant = MakeParticipant("Alex", 0);
+        var task = MakeTask("Setup", 0);
+        var eventType = MakeEventType("Practice", task);
+        var laterEvent = MakeEvent(new DateOnly(2026, 9, 8), eventType.Id, "Later");
+        var earlierEvent = MakeEvent(new DateOnly(2026, 9, 1), eventType.Id, "Earlier");
+        var state = MakeState([participant], [eventType], [laterEvent, earlierEvent]);
+
+        var result = ScheduleGenerationService.Generate(state);
+
+        Assert.True(result.IsSuccess);
+        Assert.Equal(
+            ["Earlier", "Later"],
+            result.Value!.Events.Select(@event => @event.EventDescriptionSnapshot));
+    }
+
+    [Fact]
     public void Generate_Stable_Tie_Breaking_Assigns_First_Participant_First()
     {
         var alice = MakeParticipant("Alice", 0);

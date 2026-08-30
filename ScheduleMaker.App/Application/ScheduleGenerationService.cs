@@ -29,7 +29,7 @@ public static class ScheduleGenerationService
         // Process events in chronological order, preserving existing stable ordering
         var generatedEvents = new List<GeneratedScheduleEvent>();
 
-        foreach (var scheduledEvent in state.ScheduledEvents)
+        foreach (var scheduledEvent in state.ScheduledEvents.OrderBy(@event => @event.Date))
         {
             if (!eventTypeById.TryGetValue(scheduledEvent.EventTypeId, out var eventType))
             {

@@ -254,6 +254,33 @@ public sealed class ConfigurationStateServiceTests
         Assert.False(stateStore.Current.IsScheduleStale);
     }
 
+    [Fact]
+    public async Task GenerateSchedule_Creates_And_Persists_A_New_Schedule()
+    {
+        var participant = new Participant(Guid.NewGuid(), "Alex", 0);
+        var task = new TaskDefinition(Guid.NewGuid(), "Setup", 0);
+        var eventType = new EventType(Guid.NewGuid(), "Practice", [task]);
+        var scheduledEvent = new ScheduledEvent(Guid.NewGuid(), new DateOnly(2026, 9, 10), eventType.Id, "Home");
+        var persistence = new FakePersistence(new ApplicationState(
+            [participant],
+            [eventType],
+            [scheduledEvent],
+            latestSchedule: null,
+            isScheduleStale: false));
+        var stateStore = new ApplicationStateStore(persistence);
+        await stateStore.InitializeAsync();
+        var service = new ConfigurationStateService(stateStore);
+
+        var result = await service.GenerateScheduleAsync();
+
+        Assert.True(result.IsSuccess);
+        Assert.NotNull(result.Value);
+        Assert.Equal(result.Value!.Id, stateStore.Current.LatestSchedule!.Id);
+        Assert.False(stateStore.Current.IsScheduleStale);
+        Assert.Equal("Practice", stateStore.Current.LatestSchedule.Events.Single().EventTypeNameSnapshot);
+        Assert.Equal(1, persistence.SaveCount);
+    }
+
     private sealed class FakePersistence(ApplicationState initialState) : IApplicationStatePersistence
     {
         public int SaveCount { get; private set; }
