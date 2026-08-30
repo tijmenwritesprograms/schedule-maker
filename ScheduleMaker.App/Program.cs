@@ -11,6 +11,7 @@ builder.Services.AddScoped(sp => new HttpClient { BaseAddress = new Uri(builder.
 builder.Services.AddScoped<ILocalStorage, BrowserLocalStorage>();
 builder.Services.AddScoped<IApplicationStatePersistence, LocalStorageApplicationStatePersistence>();
 builder.Services.AddScoped<ApplicationStateStore>();
+builder.Services.AddScoped<ConfigurationStateService>();
 
 var host = builder.Build();
 await host.Services.GetRequiredService<ApplicationStateStore>().InitializeAsync();
