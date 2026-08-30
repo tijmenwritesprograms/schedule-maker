@@ -124,7 +124,7 @@
                     <div>
                         <h3>Assignments by event</h3>
                         <ol class="generated-schedule-event-list" aria-label="Generated assignments by event">
-                            @foreach (var generatedEvent in latestSchedule.Events.OrderBy(@event => @event.Date))
+                            @foreach (var generatedEvent in latestSchedule.Events)
                             {
                                 <li class="generated-schedule-event-card" @key="generatedEvent.ScheduledEventId">
                                     <div class="generated-schedule-event-header">
@@ -574,9 +574,7 @@
 
         return StateStore.Current.LatestSchedule is null
             ? "Generate schedule"
-            : StateStore.Current.IsScheduleStale
-                ? "Regenerate schedule"
-                : "Generate schedule";
+            : "Regenerate schedule";
     }
 
     private string GetNoScheduleMessage(ConfigurationValidationResult validation) =>
