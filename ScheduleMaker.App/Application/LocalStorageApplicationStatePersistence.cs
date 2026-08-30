@@ -64,8 +64,7 @@ public sealed class LocalStorageApplicationStatePersistence(ILocalStorage storag
             return new ScheduledEvent(RequiredId(e.Id), e.Date, eventTypeId, e.Description);
         }).ToList();
 
-        var schedule = data.LatestSchedule is null ? null : ToGeneratedSchedule(
-            data.LatestSchedule, participantIds, taskIds, eventTypeIds);
+        var schedule = data.LatestSchedule is null ? null : ToGeneratedSchedule(data.LatestSchedule);
 
         return new ApplicationState(
             participants,
@@ -76,19 +75,11 @@ public sealed class LocalStorageApplicationStatePersistence(ILocalStorage storag
             data.SchemaVersion);
     }
 
-    private static GeneratedSchedule ToGeneratedSchedule(
-        PersistedGeneratedSchedule data,
-        HashSet<Guid> participantIds,
-        HashSet<Guid> taskIds,
-        HashSet<Guid> eventTypeIds)
+    private static GeneratedSchedule ToGeneratedSchedule(PersistedGeneratedSchedule data)
     {
         var events = (data.Events ?? throw new InvalidDataException()).Select(e =>
         {
             var eventTypeId = RequiredId(e.EventTypeId);
-            if (!eventTypeIds.Contains(eventTypeId))
-            {
-                throw new InvalidDataException();
-            }
 
             return new GeneratedScheduleEvent(
                 RequiredId(e.ScheduledEventId),
@@ -100,10 +91,6 @@ public sealed class LocalStorageApplicationStatePersistence(ILocalStorage storag
                 {
                     var participantId = RequiredId(a.ParticipantId);
                     var taskId = RequiredId(a.TaskDefinitionId);
-                    if (!participantIds.Contains(participantId) || !taskIds.Contains(taskId))
-                    {
-                        throw new InvalidDataException();
-                    }
 
                     return new GeneratedTaskAssignment(
                         taskId,
@@ -115,10 +102,6 @@ public sealed class LocalStorageApplicationStatePersistence(ILocalStorage storag
         var totals = (data.ParticipantTotals ?? throw new InvalidDataException()).Select(t =>
         {
             var participantId = RequiredId(t.ParticipantId);
-            if (!participantIds.Contains(participantId))
-            {
-                throw new InvalidDataException();
-            }
 
             return new ParticipantAssignmentTotal(
                 participantId,
