@@ -91,7 +91,7 @@
 
     @if (isGeneratingSchedule)
     {
-        <p class="empty-state" role="status">Generating schedule…</p>
+        <p class="empty-state" role="status" aria-live="polite">Generating schedule…</p>
     }
 
     @if (!string.IsNullOrWhiteSpace(scheduleGenerationErrorMessage))
@@ -108,7 +108,7 @@
         var latestSchedule = StateStore.Current.LatestSchedule;
         <section class="schedule-results" aria-label="Generated schedule results">
             <div class="schedule-status-panel @(StateStore.Current.IsScheduleStale ? "schedule-status-panel-stale" : "schedule-status-panel-current")"
-                 role="status">
+                 role="status" aria-live="polite" aria-atomic="true">
                 <p class="schedule-status-label">@GetScheduleStatusLabel()</p>
                 <p class="schedule-status-message">@GetScheduleStatusMessage(validation)</p>
                 <p class="schedule-generated-at">Generated @latestSchedule.GeneratedAtUtc.ToLocalTime().ToString("f", CultureInfo.CurrentCulture)</p>
@@ -172,7 +172,7 @@
 
     @if (validation.Issues.Count > 0)
     {
-        <ul class="validation-summary" role="list">
+        <ul class="validation-summary" role="alert">
             @foreach (var issue in validation.Issues)
             {
                 <li>@issue.Message</li>
