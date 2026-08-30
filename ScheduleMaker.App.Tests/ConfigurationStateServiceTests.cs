@@ -78,12 +78,12 @@ public sealed class ConfigurationStateServiceTests
     {
         var task = new TaskDefinition(Guid.NewGuid(), "Setup", 0);
         var eventType = new EventType(Guid.NewGuid(), "Practice", [task]);
-        var existingLater = new ScheduledEvent(Guid.NewGuid(), new DateOnly(2026, 9, 5), eventType.Id, "Later");
+        var existingEarlier = new ScheduledEvent(Guid.NewGuid(), new DateOnly(2026, 9, 5), eventType.Id, "Later");
         var sameDateFirst = new ScheduledEvent(Guid.NewGuid(), new DateOnly(2026, 9, 10), eventType.Id, "First on date");
         var sameDateSecond = new ScheduledEvent(Guid.NewGuid(), new DateOnly(2026, 9, 10), eventType.Id, "Second on date");
 
         var persistence = new FakePersistence(
-            new ApplicationState([], [eventType], [existingLater, sameDateFirst, sameDateSecond], null, false));
+            new ApplicationState([], [eventType], [existingEarlier, sameDateFirst, sameDateSecond], null, false));
         var stateStore = new ApplicationStateStore(persistence);
         await stateStore.InitializeAsync();
         var service = new ConfigurationStateService(stateStore);
