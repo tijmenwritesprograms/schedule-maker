@@ -145,6 +145,16 @@
         margin-bottom: 0;
     }
 
+    .validation-summary {
+        color: #b91c1c;
+        margin: 1rem 0 0;
+        padding-left: 1.25rem;
+    }
+
+        .validation-summary li + li {
+            margin-top: 0.5rem;
+        }
+
     code {
         color: #c02d76;
     }

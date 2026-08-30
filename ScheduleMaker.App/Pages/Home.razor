@@ -1,8 +1,13 @@
 ﻿@page "/"
 @using ScheduleMaker.App.Application
 @inject ApplicationStateStore StateStore
+@inject ConfigurationStateService ConfigurationStateService
 
 <PageTitle>Schedule Maker</PageTitle>
+
+@{
+    var validation = ConfigurationStateService.ValidateCurrentConfiguration();
+}
 
 <section class="welcome-panel" aria-labelledby="page-title">
     <p class="eyebrow">Schedule Maker</p>
@@ -17,14 +22,15 @@
 
 <section class="setup-panel" aria-labelledby="setup-title">
     <h2 id="setup-title">Your schedule</h2>
-    @if (StateStore.Current.Participants.Count == 0 &&
-         StateStore.Current.EventTypes.Count == 0 &&
-         StateStore.Current.ScheduledEvents.Count == 0)
+    <p class="empty-state">@validation.NextStepMessage</p>
+
+    @if (validation.Issues.Count > 0)
     {
-        <p class="empty-state">Your schedule is empty. Add participants to begin.</p>
-    }
-    else
-    {
-        <p class="empty-state">Your configuration is ready to manage.</p>
+        <ul class="validation-summary" role="list">
+            @foreach (var issue in validation.Issues)
+            {
+                <li>@issue.Message</li>
+            }
+        </ul>
     }
 </section>

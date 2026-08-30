@@ -4,6 +4,9 @@ namespace ScheduleMaker.App.Application;
 
 public sealed class ConfigurationStateService(ApplicationStateStore stateStore)
 {
+    public ConfigurationValidationResult ValidateCurrentConfiguration() =>
+        ConfigurationValidation.Validate(stateStore.Current);
+
     public async Task<ApplicationOperationResult> AddParticipantAsync(string name, CancellationToken cancellationToken = default)
     {
         var normalizedName = NormalizeRequiredName(name);
@@ -93,12 +96,10 @@ public sealed class ConfigurationStateService(ApplicationStateStore stateStore)
             return ApplicationOperationResult.Failure("Event type was not found.");
         }
 
-        var scheduledEvents = stateStore.Current.ScheduledEvents.Where(@event => @event.EventTypeId != eventTypeId).ToList();
-
         await ReplaceStateAsync(
             participants: stateStore.Current.Participants,
             eventTypes: eventTypes,
-            scheduledEvents: scheduledEvents,
+            scheduledEvents: stateStore.Current.ScheduledEvents,
             scheduleChanged: true,
             cancellationToken);
         return ApplicationOperationResult.Success();
