@@ -287,7 +287,7 @@
     private string? eventTypeInputErrorMessage;
     private readonly Dictionary<Guid, string> taskNames = [];
     private readonly Dictionary<Guid, string> taskInputErrorMessages = [];
-    private string scheduledEventDate = string.Empty;
+    private DateTime? scheduledEventDate;
     private string selectedEventTypeId = string.Empty;
     private string scheduledEventDescription = string.Empty;
     private string? scheduledEventDateErrorMessage;
@@ -399,11 +399,13 @@
         scheduledEventTypeErrorMessage = null;
         scheduledEventDescriptionErrorMessage = null;
 
-        if (!DateOnly.TryParseExact(scheduledEventDate, "yyyy-MM-dd", CultureInfo.InvariantCulture, DateTimeStyles.None, out var date))
+        if (scheduledEventDate is null)
         {
             scheduledEventDateErrorMessage = "Choose a date.";
             return;
         }
+
+        var date = DateOnly.FromDateTime(scheduledEventDate.Value);
 
         if (!Guid.TryParse(selectedEventTypeId, out var eventTypeId))
         {
@@ -414,7 +416,7 @@
         var result = await ConfigurationStateService.AddScheduledEventAsync(date, eventTypeId, scheduledEventDescription);
         if (result.IsSuccess)
         {
-            scheduledEventDate = string.Empty;
+            scheduledEventDate = null;
             scheduledEventDescription = string.Empty;
             RefreshScheduledEvents();
             return;
