@@ -82,6 +82,7 @@
             <p class="section-description">@GetGeneratedScheduleDescription(validation)</p>
         </div>
         <button type="button"
+                id="generate-schedule"
                 class="primary-action"
                 disabled="@(!validation.CanGenerate || isGeneratingSchedule)"
                 @onclick="GenerateScheduleAsync">
