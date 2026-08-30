@@ -91,7 +91,7 @@
 
     @if (isGeneratingSchedule)
     {
-        <p class="empty-state" role="status">Generating schedule…</p>
+        <p class="empty-state" role="status" aria-live="polite">Generating schedule…</p>
     }
 
     @if (!string.IsNullOrWhiteSpace(scheduleGenerationErrorMessage))
@@ -108,7 +108,7 @@
         var latestSchedule = StateStore.Current.LatestSchedule;
         <section class="schedule-results" aria-label="Generated schedule results">
             <div class="schedule-status-panel @(StateStore.Current.IsScheduleStale ? "schedule-status-panel-stale" : "schedule-status-panel-current")"
-                 role="status">
+                 role="status" aria-live="polite" aria-atomic="true">
                 <p class="schedule-status-label">@GetScheduleStatusLabel()</p>
                 <p class="schedule-status-message">@GetScheduleStatusMessage(validation)</p>
                 <p class="schedule-generated-at">Generated @latestSchedule.GeneratedAtUtc.ToLocalTime().ToString("f", CultureInfo.CurrentCulture)</p>
@@ -172,12 +172,14 @@
 
     @if (validation.Issues.Count > 0)
     {
-        <ul class="validation-summary" role="list">
-            @foreach (var issue in validation.Issues)
-            {
-                <li>@issue.Message</li>
-            }
-        </ul>
+        <div role="status" aria-live="polite" aria-atomic="true">
+            <ul class="validation-summary" role="list">
+                @foreach (var issue in validation.Issues)
+                {
+                    <li>@issue.Message</li>
+                }
+            </ul>
+        </div>
     }
 </section>
 
@@ -293,18 +295,21 @@
                        type="date"
                        class="participant-input"
                        @bind="scheduledEventDate"
-                       aria-describedby="scheduled-event-date-help" />
+                       aria-describedby="scheduled-event-date-help scheduled-event-date-error"
+                       aria-invalid="@(!string.IsNullOrWhiteSpace(scheduledEventDateErrorMessage))" />
                 <p id="scheduled-event-date-help" class="field-help">Choose when this event takes place.</p>
                 @if (!string.IsNullOrWhiteSpace(scheduledEventDateErrorMessage))
                 {
-                    <p class="field-error" role="alert">@scheduledEventDateErrorMessage</p>
+                    <p id="scheduled-event-date-error" class="field-error" role="alert">@scheduledEventDateErrorMessage</p>
                 }
             </div>
             <div class="event-form-field">
                 <label for="scheduled-event-type">Event type</label>
                 <select id="scheduled-event-type"
                         class="participant-input"
-                        @bind="selectedEventTypeId">
+                        @bind="selectedEventTypeId"
+                        aria-describedby="scheduled-event-type-error"
+                        aria-invalid="@(!string.IsNullOrWhiteSpace(scheduledEventTypeErrorMessage))">
                     <option value="">Select an event type</option>
                     @foreach (var eventType in eventTypes)
                     {
@@ -313,7 +318,7 @@
                 </select>
                 @if (!string.IsNullOrWhiteSpace(scheduledEventTypeErrorMessage))
                 {
-                    <p class="field-error" role="alert">@scheduledEventTypeErrorMessage</p>
+                    <p id="scheduled-event-type-error" class="field-error" role="alert">@scheduledEventTypeErrorMessage</p>
                 }
             </div>
             <div class="event-form-field event-description-field">

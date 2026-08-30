@@ -15,7 +15,7 @@
 
 <body>
     <div id="app">
-        <svg class="loading-progress">
+        <svg class="loading-progress" role="img" aria-label="Loading Schedule Maker">
             <circle r="40%" cx="50%" cy="50%" />
             <circle r="40%" cx="50%" cy="50%" />
         </svg>
@@ -25,7 +25,7 @@
     <div id="blazor-error-ui">
         An unhandled error has occurred.
         <a href="." class="reload">Reload</a>
-        <span class="dismiss">🗙</span>
+        <button type="button" class="dismiss" aria-label="Dismiss error">🗙</button>
     </div>
     <script src="_framework/blazor.webassembly#[.{fingerprint}].js"></script>
 </body>
