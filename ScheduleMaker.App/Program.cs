@@ -8,6 +8,10 @@ builder.RootComponents.Add<App>("#app");
 builder.RootComponents.Add<HeadOutlet>("head::after");
 
 builder.Services.AddScoped(sp => new HttpClient { BaseAddress = new Uri(builder.HostEnvironment.BaseAddress) });
+builder.Services.AddScoped<ILocalStorage, BrowserLocalStorage>();
+builder.Services.AddScoped<IApplicationStatePersistence, LocalStorageApplicationStatePersistence>();
 builder.Services.AddScoped<ApplicationStateStore>();
 
-await builder.Build().RunAsync();
+var host = builder.Build();
+await host.Services.GetRequiredService<ApplicationStateStore>().InitializeAsync();
+await host.RunAsync();
