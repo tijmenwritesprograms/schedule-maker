@@ -27,7 +27,7 @@ public sealed class LocalStorageApplicationStatePersistence(ILocalStorage storag
                 ? ApplicationState.Empty
                 : ToApplicationState(data);
         }
-        catch (Exception) when (IsRecoverableStorageFailure())
+        catch (Exception ex) when (ex is JsonException or InvalidDataException or ArgumentException or FormatException)
         {
             return ApplicationState.Empty;
         }
@@ -39,8 +39,6 @@ public sealed class LocalStorageApplicationStatePersistence(ILocalStorage storag
         var json = JsonSerializer.Serialize(FromApplicationState(state), JsonOptions);
         await storage.SetItemAsync(StorageKey, json, cancellationToken);
     }
-
-    private static bool IsRecoverableStorageFailure() => true;
 
     private static ApplicationState ToApplicationState(PersistedState data)
     {
