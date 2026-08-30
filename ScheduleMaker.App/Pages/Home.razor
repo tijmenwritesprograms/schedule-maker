@@ -1,6 +1,7 @@
 ﻿@page "/"
 @using ScheduleMaker.App.Application
 @using ScheduleMaker.App.Domain
+@using System.Globalization
 @inject ApplicationStateStore StateStore
 @inject ConfigurationStateService ConfigurationStateService
 
@@ -178,6 +179,108 @@
     }
 </section>
 
+<section class="setup-panel" aria-labelledby="events-title">
+    <div class="section-header">
+        <h2 id="events-title">Dated events</h2>
+        <p class="section-description">Add each event date and choose the event type whose tasks should be scheduled.</p>
+    </div>
+
+    @if (eventTypes.Count == 0)
+    {
+        <p class="empty-state">Add an event type before creating a dated event.</p>
+    }
+    else
+    {
+        <form class="event-form" @onsubmit="AddScheduledEventAsync" @onsubmit:preventDefault="true">
+            @if (!string.IsNullOrWhiteSpace(scheduledEventErrorMessage))
+            {
+                <p class="field-error" role="alert">@scheduledEventErrorMessage</p>
+            }
+            <div class="event-form-field">
+                <label for="scheduled-event-date">Date</label>
+                <input id="scheduled-event-date"
+                       type="date"
+                       class="participant-input"
+                       @bind="scheduledEventDate"
+                       aria-describedby="scheduled-event-date-help" />
+                <p id="scheduled-event-date-help" class="field-help">Choose when this event takes place.</p>
+                @if (!string.IsNullOrWhiteSpace(scheduledEventDateErrorMessage))
+                {
+                    <p class="field-error" role="alert">@scheduledEventDateErrorMessage</p>
+                }
+            </div>
+            <div class="event-form-field">
+                <label for="scheduled-event-type">Event type</label>
+                <select id="scheduled-event-type"
+                        class="participant-input"
+                        @bind="selectedEventTypeId">
+                    <option value="">Select an event type</option>
+                    @foreach (var eventType in eventTypes)
+                    {
+                        <option value="@eventType.Id">@eventType.Name</option>
+                    }
+                </select>
+                @if (!string.IsNullOrWhiteSpace(scheduledEventTypeErrorMessage))
+                {
+                    <p class="field-error" role="alert">@scheduledEventTypeErrorMessage</p>
+                }
+            </div>
+            <div class="event-form-field event-description-field">
+                <label for="scheduled-event-description">Description <span>(optional)</span></label>
+                <textarea id="scheduled-event-description"
+                          class="participant-input"
+                          maxlength="500"
+                          rows="3"
+                          @bind="scheduledEventDescription"
+                          aria-describedby="scheduled-event-description-help"></textarea>
+                <p id="scheduled-event-description-help" class="field-help">Up to 500 characters.</p>
+            </div>
+            <button type="submit" class="primary-action">Add event</button>
+        </form>
+    }
+
+    @if (scheduledEvents.Count == 0)
+    {
+        <p class="empty-state">No dated events yet. An event type and date are required.</p>
+    }
+    else
+    {
+        @if (!string.IsNullOrWhiteSpace(removeScheduledEventErrorMessage))
+        {
+            <p class="field-error" role="alert">@removeScheduledEventErrorMessage</p>
+        }
+        <ol class="scheduled-event-list" aria-label="Dated events">
+            @foreach (var scheduledEvent in scheduledEvents)
+            {
+                var eventType = eventTypes.FirstOrDefault(candidate => candidate.Id == scheduledEvent.EventTypeId);
+                <li class="scheduled-event-card" @key="scheduledEvent.Id">
+                    <div>
+                        <p class="scheduled-event-date">@scheduledEvent.Date.ToString("MMMM d, yyyy", CultureInfo.CurrentCulture)</p>
+                        @if (eventType is null)
+                        {
+                            <p class="field-error" role="alert">Missing event type (this event type was deleted).</p>
+                        }
+                        else
+                        {
+                            <h3>@eventType.Name</h3>
+                        }
+                        @if (!string.IsNullOrWhiteSpace(scheduledEvent.Description))
+                        {
+                            <p class="scheduled-event-description">@scheduledEvent.Description</p>
+                        }
+                    </div>
+                    <button type="button"
+                            class="secondary-action"
+                            aria-label="@($"Remove {eventType?.Name ?? "event with missing type"} on {scheduledEvent.Date:d}")"
+                            @onclick="() => RemoveScheduledEventAsync(scheduledEvent.Id)">
+                        Remove event
+                    </button>
+                </li>
+            }
+        </ol>
+    }
+</section>
+
 @code {
     private string participantName = string.Empty;
     private string? participantInputErrorMessage;
@@ -188,11 +291,20 @@
     private string? eventTypeInputErrorMessage;
     private readonly Dictionary<Guid, string> taskNames = [];
     private readonly Dictionary<Guid, string> taskInputErrorMessages = [];
+    private DateTime? scheduledEventDate;
+    private string selectedEventTypeId = string.Empty;
+    private string scheduledEventDescription = string.Empty;
+    private string? scheduledEventDateErrorMessage;
+    private string? scheduledEventTypeErrorMessage;
+    private string? scheduledEventErrorMessage;
+    private string? removeScheduledEventErrorMessage;
+    private IReadOnlyList<ScheduledEvent> scheduledEvents = [];
 
     protected override void OnInitialized()
     {
         RefreshParticipants();
         RefreshEventTypes();
+        RefreshScheduledEvents();
     }
 
     private async Task AddEventTypeAsync()
@@ -286,6 +398,53 @@
         }
     }
 
+    private async Task AddScheduledEventAsync()
+    {
+        scheduledEventDateErrorMessage = null;
+        scheduledEventTypeErrorMessage = null;
+        scheduledEventErrorMessage = null;
+
+        if (scheduledEventDate is null)
+        {
+            scheduledEventDateErrorMessage = "Choose a date.";
+            return;
+        }
+
+        var date = DateOnly.FromDateTime(scheduledEventDate.Value);
+
+        if (!Guid.TryParse(selectedEventTypeId, out var eventTypeId))
+        {
+            scheduledEventTypeErrorMessage = "Select an event type.";
+            return;
+        }
+
+        var result = await ConfigurationStateService.AddScheduledEventAsync(date, eventTypeId, scheduledEventDescription);
+        if (result.IsSuccess)
+        {
+            scheduledEventDate = null;
+            selectedEventTypeId = string.Empty;
+            scheduledEventDescription = string.Empty;
+            RefreshScheduledEvents();
+            return;
+        }
+
+        scheduledEventErrorMessage = result.ErrorMessage;
+    }
+
+    private async Task RemoveScheduledEventAsync(Guid scheduledEventId)
+    {
+        var result = await ConfigurationStateService.RemoveScheduledEventAsync(scheduledEventId);
+        if (result.IsSuccess)
+        {
+            removeScheduledEventErrorMessage = null;
+            RefreshScheduledEvents();
+        }
+        else
+        {
+            removeScheduledEventErrorMessage = result.ErrorMessage;
+        }
+    }
+
     private string GetParticipantFieldDescription() =>
         string.IsNullOrWhiteSpace(participantInputErrorMessage)
             ? "participant-help"
@@ -307,5 +466,12 @@
         {
             taskNames.TryAdd(eventType.Id, string.Empty);
         }
+    }
+
+    private void RefreshScheduledEvents()
+    {
+        scheduledEvents = StateStore.Current.ScheduledEvents
+            .OrderBy(scheduledEvent => scheduledEvent.Date)
+            .ToList();
     }
 }
