@@ -272,6 +272,20 @@ public sealed class ConfigurationStateService(ApplicationStateStore stateStore)
         return ApplicationOperationResult.Success();
     }
 
+    public async Task<ApplicationOperationResult<GeneratedSchedule>> GenerateScheduleAsync(
+        CancellationToken cancellationToken = default)
+    {
+        var generationResult = ScheduleGenerationService.Generate(stateStore.Current);
+        if (!generationResult.IsSuccess || generationResult.Value is null)
+        {
+            return ApplicationOperationResult<GeneratedSchedule>.Failure(
+                generationResult.ErrorMessage ?? "Schedule generation failed.");
+        }
+
+        await ApplyGeneratedScheduleAsync(generationResult, cancellationToken);
+        return generationResult;
+    }
+
     private async Task ReplaceStateAsync(
         IEnumerable<Participant> participants,
         IEnumerable<EventType> eventTypes,
