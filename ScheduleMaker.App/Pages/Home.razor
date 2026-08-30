@@ -12,7 +12,7 @@
 
 @if (!string.IsNullOrWhiteSpace(StateStore.PersistenceError))
 {
-    <p class="error-message" role="alert">Your saved schedule could not be accessed. You can continue here, and it will be retried when you save.</p>
+    <p class="error-message" role="alert">@StateStore.PersistenceError</p>
 }
 
 <section class="setup-panel" aria-labelledby="setup-title">
