@@ -1,5 +1,6 @@
 ﻿@page "/"
 @using ScheduleMaker.App.Application
+@using ScheduleMaker.App.Domain
 @inject ApplicationStateStore StateStore
 @inject ConfigurationStateService ConfigurationStateService
 
@@ -20,6 +21,59 @@
     <p class="error-message" role="alert">@StateStore.PersistenceError</p>
 }
 
+<section class="setup-panel" aria-labelledby="participants-title">
+    <div class="section-header">
+        <h2 id="participants-title">Participants</h2>
+        <p class="section-description">Add each person who should share recurring tasks.</p>
+    </div>
+
+    <form class="participant-form" @onsubmit="AddParticipantAsync" @onsubmit:preventDefault="true">
+        <div class="participant-field">
+            <label for="participant-name">Participant name</label>
+            <input id="participant-name"
+                   type="text"
+                   class="participant-input"
+                   @bind="participantName"
+                   @bind:event="oninput"
+                   aria-describedby="@GetParticipantFieldDescription()" />
+            <p id="participant-help" class="field-help">Enter one name at a time, then select Add participant.</p>
+            @if (!string.IsNullOrWhiteSpace(participantInputErrorMessage))
+            {
+                <p id="participant-feedback" class="field-error" role="alert">@participantInputErrorMessage</p>
+            }
+        </div>
+
+        <button type="submit" class="primary-action">Add participant</button>
+    </form>
+
+    @if (!string.IsNullOrWhiteSpace(participantListErrorMessage))
+    {
+        <p class="field-error" role="alert">@participantListErrorMessage</p>
+    }
+
+    @if (participants.Count == 0)
+    {
+        <p class="empty-state">Add your first participant above to start building the schedule.</p>
+    }
+    else
+    {
+        <ul class="participant-list" role="list" aria-label="Participants">
+            @foreach (var participant in participants)
+            {
+                <li class="participant-list-item" @key="participant.Id">
+                    <span>@participant.Name</span>
+                    <button type="button"
+                            class="secondary-action"
+                            aria-label="@($"Remove {participant.Name}")"
+                            @onclick="() => RemoveParticipantAsync(participant.Id)">
+                        Remove
+                    </button>
+                </li>
+            }
+        </ul>
+    }
+</section>
+
 <section class="setup-panel" aria-labelledby="setup-title">
     <h2 id="setup-title">Your schedule</h2>
     <p class="empty-state">@validation.NextStepMessage</p>
@@ -34,3 +88,58 @@
         </ul>
     }
 </section>
+
+@code {
+    private string participantName = string.Empty;
+    private string? participantInputErrorMessage;
+    private string? participantListErrorMessage;
+    private IReadOnlyList<Participant> participants = [];
+
+    protected override void OnInitialized()
+    {
+        RefreshParticipants();
+    }
+
+    private async Task AddParticipantAsync()
+    {
+        var result = await ConfigurationStateService.AddParticipantAsync(participantName);
+        if (result.IsSuccess)
+        {
+            participantName = string.Empty;
+            participantInputErrorMessage = null;
+            participantListErrorMessage = null;
+            RefreshParticipants();
+            return;
+        }
+
+        participantInputErrorMessage = result.ErrorMessage;
+        participantListErrorMessage = null;
+    }
+
+    private async Task RemoveParticipantAsync(Guid participantId)
+    {
+        participantInputErrorMessage = null;
+        var result = await ConfigurationStateService.RemoveParticipantAsync(participantId);
+        if (result.IsSuccess)
+        {
+            participantListErrorMessage = null;
+            RefreshParticipants();
+        }
+        else
+        {
+            participantListErrorMessage = result.ErrorMessage;
+        }
+    }
+
+    private string GetParticipantFieldDescription() =>
+        string.IsNullOrWhiteSpace(participantInputErrorMessage)
+            ? "participant-help"
+            : "participant-help participant-feedback";
+
+    private void RefreshParticipants()
+    {
+        participants = StateStore.Current.Participants
+            .OrderBy(participant => participant.SortOrder)
+            .ToList();
+    }
+}
