@@ -8,7 +8,6 @@
 
 @{
     var validation = ConfigurationStateService.ValidateCurrentConfiguration();
-    var participants = GetParticipants();
 }
 
 <section class="welcome-panel" aria-labelledby="page-title">
@@ -32,19 +31,25 @@
         <div class="participant-field">
             <label for="participant-name">Participant name</label>
             <input id="participant-name"
+                   type="text"
                    class="participant-input"
                    @bind="participantName"
                    @bind:event="oninput"
                    aria-describedby="@GetParticipantFieldDescription()" />
             <p id="participant-help" class="field-help">Enter one name at a time, then select Add participant.</p>
-            @if (!string.IsNullOrWhiteSpace(participantErrorMessage))
+            @if (!string.IsNullOrWhiteSpace(participantInputErrorMessage))
             {
-                <p id="participant-feedback" class="field-error" role="alert">@participantErrorMessage</p>
+                <p id="participant-feedback" class="field-error" role="alert">@participantInputErrorMessage</p>
             }
         </div>
 
         <button type="submit" class="primary-action">Add participant</button>
     </form>
+
+    @if (!string.IsNullOrWhiteSpace(participantListErrorMessage))
+    {
+        <p class="field-error" role="alert">@participantListErrorMessage</p>
+    }
 
     @if (participants.Count == 0)
     {
@@ -59,7 +64,7 @@
                     <span>@participant.Name</span>
                     <button type="button"
                             class="secondary-action"
-                            aria-label="Remove @participant.Name"
+                            aria-label="@($"Remove {participant.Name}")"
                             @onclick="() => RemoveParticipantAsync(participant.Id)">
                         Remove
                     </button>
@@ -86,12 +91,14 @@
 
 @code {
     private string participantName = string.Empty;
-    private string? participantErrorMessage;
+    private string? participantInputErrorMessage;
+    private string? participantListErrorMessage;
+    private IReadOnlyList<Participant> participants = [];
 
-    private IReadOnlyList<Participant> GetParticipants() =>
-        StateStore.Current.Participants
-            .OrderBy(participant => participant.SortOrder)
-            .ToList();
+    protected override void OnInitialized()
+    {
+        RefreshParticipants();
+    }
 
     private async Task AddParticipantAsync()
     {
@@ -99,21 +106,40 @@
         if (result.IsSuccess)
         {
             participantName = string.Empty;
-            participantErrorMessage = null;
+            participantInputErrorMessage = null;
+            participantListErrorMessage = null;
+            RefreshParticipants();
             return;
         }
 
-        participantErrorMessage = result.ErrorMessage;
+        participantInputErrorMessage = result.ErrorMessage;
+        participantListErrorMessage = null;
     }
 
     private async Task RemoveParticipantAsync(Guid participantId)
     {
+        participantInputErrorMessage = null;
         var result = await ConfigurationStateService.RemoveParticipantAsync(participantId);
-        participantErrorMessage = result.IsSuccess ? null : result.ErrorMessage;
+        if (result.IsSuccess)
+        {
+            participantListErrorMessage = null;
+            RefreshParticipants();
+        }
+        else
+        {
+            participantListErrorMessage = result.ErrorMessage;
+        }
     }
 
     private string GetParticipantFieldDescription() =>
-        string.IsNullOrWhiteSpace(participantErrorMessage)
+        string.IsNullOrWhiteSpace(participantInputErrorMessage)
             ? "participant-help"
             : "participant-help participant-feedback";
+
+    private void RefreshParticipants()
+    {
+        participants = StateStore.Current.Participants
+            .OrderBy(participant => participant.SortOrder)
+            .ToList();
+    }
 }
