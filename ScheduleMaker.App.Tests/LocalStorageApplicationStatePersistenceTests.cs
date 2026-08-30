@@ -50,8 +50,27 @@ public sealed class LocalStorageApplicationStatePersistenceTests
         storage.Value = """{"schemaVersion":999,"participants":[],"eventTypes":[],"scheduledEvents":[]}""";
         Assert.Empty((await persistence.LoadAsync()).ScheduledEvents);
 
-        storage.Value = """{"schemaVersion":1,"participants":[],"eventTypes":[],"scheduledEvents":[{"id":"00000000-0000-0000-0000-000000000001","date":"2026-09-01","eventTypeId":"00000000-0000-0000-0000-000000000002"}]}""";
+        storage.Value = """{"schemaVersion":1,"participants":[],"eventTypes":[],"scheduledEvents":[{"id":"00000000-0000-0000-0000-000000000001","date":"2026-09-01","eventTypeId":"00000000-0000-0000-0000-000000000000"}]}""";
         Assert.Empty((await persistence.LoadAsync()).ScheduledEvents);
+    }
+
+    [Fact]
+    public async Task Load_Preserves_Events_With_Missing_Event_Type_References()
+    {
+        var storage = new FakeLocalStorage
+        {
+            Value = """
+                {"schemaVersion":1,"participants":[{"id":"00000000-0000-0000-0000-000000000010","name":"Alex","sortOrder":0}],"eventTypes":[],"scheduledEvents":[{"id":"00000000-0000-0000-0000-000000000001","date":"2026-09-01","eventTypeId":"00000000-0000-0000-0000-000000000002","description":"Still here"}],"isScheduleStale":true}
+                """
+        };
+        var persistence = new LocalStorageApplicationStatePersistence(storage);
+
+        var restored = await persistence.LoadAsync();
+
+        Assert.Single(restored.Participants);
+        Assert.Single(restored.ScheduledEvents);
+        Assert.Equal(Guid.Parse("00000000-0000-0000-0000-000000000002"), restored.ScheduledEvents[0].EventTypeId);
+        Assert.Equal("Still here", restored.ScheduledEvents[0].Description);
     }
 
     private sealed class FakeLocalStorage : ILocalStorage

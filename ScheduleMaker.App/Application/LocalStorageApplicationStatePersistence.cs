@@ -44,23 +44,14 @@ public sealed class LocalStorageApplicationStatePersistence(ILocalStorage storag
     {
         var participants = (data.Participants ?? throw new InvalidDataException()).Select(p =>
             new Participant(RequiredId(p.Id), RequiredText(p.Name), p.SortOrder)).ToList();
-        var participantIds = participants.Select(p => p.Id).ToHashSet();
-
         var eventTypes = (data.EventTypes ?? throw new InvalidDataException()).Select(e =>
             new EventType(RequiredId(e.Id), RequiredText(e.Name),
                 (e.Tasks ?? throw new InvalidDataException()).Select(t =>
                     new TaskDefinition(RequiredId(t.Id), RequiredText(t.Name), t.SortOrder)))).ToList();
-        var eventTypeIds = eventTypes.Select(e => e.Id).ToHashSet();
-        var taskIds = eventTypes.SelectMany(e => e.Tasks).Select(t => t.Id).ToHashSet();
 
         var scheduledEvents = (data.ScheduledEvents ?? throw new InvalidDataException()).Select(e =>
         {
             var eventTypeId = RequiredId(e.EventTypeId);
-            if (!eventTypeIds.Contains(eventTypeId))
-            {
-                throw new InvalidDataException();
-            }
-
             return new ScheduledEvent(RequiredId(e.Id), e.Date, eventTypeId, e.Description);
         }).ToList();
 

@@ -7,6 +7,21 @@ namespace ScheduleMaker.App.Tests;
 public sealed class ConfigurationStateServiceTests
 {
     [Fact]
+    public async Task AddParticipant_Rejects_Blank_Name()
+    {
+        var persistence = new FakePersistence(ApplicationState.Empty);
+        var stateStore = new ApplicationStateStore(persistence);
+        await stateStore.InitializeAsync();
+        var service = new ConfigurationStateService(stateStore);
+
+        var result = await service.AddParticipantAsync("   ");
+
+        Assert.False(result.IsSuccess);
+        Assert.Equal("Participant name is required.", result.ErrorMessage);
+        Assert.Equal(0, persistence.SaveCount);
+    }
+
+    [Fact]
     public async Task AddParticipant_Trims_Name_And_Persists_State()
     {
         var persistence = new FakePersistence(ApplicationState.Empty);
@@ -99,6 +114,44 @@ public sealed class ConfigurationStateServiceTests
     }
 
     [Fact]
+    public async Task AddEventType_Rejects_Blank_Event_Type_And_Task_Names()
+    {
+        var persistence = new FakePersistence(ApplicationState.Empty);
+        var stateStore = new ApplicationStateStore(persistence);
+        await stateStore.InitializeAsync();
+        var service = new ConfigurationStateService(stateStore);
+
+        var missingEventTypeName = await service.AddEventTypeAsync("   ", "Setup");
+        var missingTaskName = await service.AddEventTypeAsync("Practice", "   ");
+
+        Assert.False(missingEventTypeName.IsSuccess);
+        Assert.Equal("Event type name is required.", missingEventTypeName.ErrorMessage);
+        Assert.False(missingTaskName.IsSuccess);
+        Assert.Equal("Task name is required.", missingTaskName.ErrorMessage);
+        Assert.Equal(0, persistence.SaveCount);
+    }
+
+    [Fact]
+    public async Task AddScheduledEvent_Rejects_Description_Longer_Than_500_Characters()
+    {
+        var task = new TaskDefinition(Guid.NewGuid(), "Setup", 0);
+        var eventType = new EventType(Guid.NewGuid(), "Practice", [task]);
+        var persistence = new FakePersistence(new ApplicationState([], [eventType], [], null, false));
+        var stateStore = new ApplicationStateStore(persistence);
+        await stateStore.InitializeAsync();
+        var service = new ConfigurationStateService(stateStore);
+
+        var result = await service.AddScheduledEventAsync(
+            new DateOnly(2026, 9, 10),
+            eventType.Id,
+            new string('x', 501));
+
+        Assert.False(result.IsSuccess);
+        Assert.Equal("Description cannot be longer than 500 characters.", result.ErrorMessage);
+        Assert.Empty(stateStore.Current.ScheduledEvents);
+    }
+
+    [Fact]
     public async Task RemoveTask_Rejects_Last_Task_In_Event_Type()
     {
         var task = new TaskDefinition(Guid.NewGuid(), "Only task", 0);
@@ -116,7 +169,7 @@ public sealed class ConfigurationStateServiceTests
     }
 
     [Fact]
-    public async Task RemoveEventType_Removes_Referencing_Events_And_Marks_Schedule_Stale()
+    public async Task RemoveEventType_Preserves_Referencing_Events_And_Marks_Schedule_Stale()
     {
         var participant = new Participant(Guid.NewGuid(), "Alex", 0);
         var task = new TaskDefinition(Guid.NewGuid(), "Setup", 0);
@@ -141,11 +194,9 @@ public sealed class ConfigurationStateServiceTests
         var service = new ConfigurationStateService(stateStore);
 
         var result = await service.RemoveEventTypeAsync(eventType.Id);
-
         Assert.True(result.IsSuccess);
         Assert.Single(stateStore.Current.EventTypes);
-        Assert.Single(stateStore.Current.ScheduledEvents);
-        Assert.Equal(keptEvent.Id, stateStore.Current.ScheduledEvents[0].Id);
+        Assert.Equal([removedEvent.Id, keptEvent.Id], stateStore.Current.ScheduledEvents.Select(@event => @event.Id));
         Assert.True(stateStore.Current.IsScheduleStale);
     }
 
