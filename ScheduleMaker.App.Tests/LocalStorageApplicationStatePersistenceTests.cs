@@ -73,6 +73,21 @@ public sealed class LocalStorageApplicationStatePersistenceTests
         Assert.Equal("Still here", restored.ScheduledEvents[0].Description);
     }
 
+    [Fact]
+    public async Task Separate_Persistence_Instances_Restore_State_After_Application_Reload()
+    {
+        var storage = new FakeLocalStorage();
+        var firstPersistence = new LocalStorageApplicationStatePersistence(storage);
+        var participant = new Participant(Guid.NewGuid(), "Alex", 0);
+        var state = new ApplicationState([participant], [], [], null, false);
+
+        await firstPersistence.SaveAsync(state);
+
+        var reloadedState = await new LocalStorageApplicationStatePersistence(storage).LoadAsync();
+
+        Assert.Equal("Alex", Assert.Single(reloadedState.Participants).Name);
+    }
+
     private sealed class FakeLocalStorage : ILocalStorage
     {
         public string? Value { get; set; }
