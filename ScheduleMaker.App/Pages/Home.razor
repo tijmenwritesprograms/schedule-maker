@@ -245,6 +245,10 @@
     }
     else
     {
+        @if (!string.IsNullOrWhiteSpace(removeScheduledEventErrorMessage))
+        {
+            <p class="field-error" role="alert">@removeScheduledEventErrorMessage</p>
+        }
         <ol class="scheduled-event-list" aria-label="Dated events">
             @foreach (var scheduledEvent in scheduledEvents)
             {
@@ -267,7 +271,7 @@
                     </div>
                     <button type="button"
                             class="secondary-action"
-                            aria-label="@($"Remove event on {scheduledEvent.Date:d}")"
+                            aria-label="@($"Remove {eventType?.Name ?? "event with missing type"} on {scheduledEvent.Date:d}")"
                             @onclick="() => RemoveScheduledEventAsync(scheduledEvent.Id)">
                         Remove event
                     </button>
@@ -293,6 +297,7 @@
     private string? scheduledEventDateErrorMessage;
     private string? scheduledEventTypeErrorMessage;
     private string? scheduledEventDescriptionErrorMessage;
+    private string? removeScheduledEventErrorMessage;
     private IReadOnlyList<ScheduledEvent> scheduledEvents = [];
 
     protected override void OnInitialized()
@@ -416,6 +421,7 @@
         var result = await ConfigurationStateService.AddScheduledEventAsync(date, eventTypeId, scheduledEventDescription);
         if (result.IsSuccess)
         {
+            removeScheduledEventErrorMessage = null;
             scheduledEventDate = null;
             scheduledEventDescription = string.Empty;
             RefreshScheduledEvents();
@@ -430,11 +436,12 @@
         var result = await ConfigurationStateService.RemoveScheduledEventAsync(scheduledEventId);
         if (result.IsSuccess)
         {
+            removeScheduledEventErrorMessage = null;
             RefreshScheduledEvents();
         }
         else
         {
-            scheduledEventDescriptionErrorMessage = result.ErrorMessage;
+            removeScheduledEventErrorMessage = result.ErrorMessage;
         }
     }
 
