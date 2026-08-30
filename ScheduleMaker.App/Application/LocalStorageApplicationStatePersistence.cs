@@ -111,7 +111,7 @@ public sealed class LocalStorageApplicationStatePersistence(ILocalStorage storag
                         participantId,
                         RequiredText(a.ParticipantNameSnapshot));
                 }));
-        });
+        }).ToList();
         var totals = (data.ParticipantTotals ?? throw new InvalidDataException()).Select(t =>
         {
             var participantId = RequiredId(t.ParticipantId);
@@ -124,7 +124,7 @@ public sealed class LocalStorageApplicationStatePersistence(ILocalStorage storag
                 participantId,
                 RequiredText(t.ParticipantNameSnapshot),
                 t.AssignmentCount);
-        });
+        }).ToList();
 
         return new GeneratedSchedule(RequiredId(data.Id), data.GeneratedAtUtc, events, totals);
     }

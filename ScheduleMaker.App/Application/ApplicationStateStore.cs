@@ -3,10 +3,14 @@ namespace ScheduleMaker.App.Application;
 public sealed class ApplicationStateStore
 {
     private readonly IApplicationStatePersistence? persistence;
+    private readonly ILogger<ApplicationStateStore>? logger;
 
-    public ApplicationStateStore(IApplicationStatePersistence? persistence = null)
+    public ApplicationStateStore(
+        IApplicationStatePersistence? persistence = null,
+        ILogger<ApplicationStateStore>? logger = null)
     {
         this.persistence = persistence;
+        this.logger = logger;
     }
 
     public ApplicationState Current { get; private set; } = ApplicationState.Empty;
@@ -27,7 +31,8 @@ public sealed class ApplicationStateStore
         }
         catch (Exception ex)
         {
-            PersistenceError = ex.Message;
+            logger?.LogError(ex, "Unable to load application state from browser storage.");
+            PersistenceError = "Saved schedule data could not be accessed.";
         }
     }
 
@@ -50,7 +55,8 @@ public sealed class ApplicationStateStore
         }
         catch (Exception ex)
         {
-            PersistenceError = ex.Message;
+            logger?.LogError(ex, "Unable to save application state to browser storage.");
+            PersistenceError = "Your changes could not be saved.";
         }
     }
 }
