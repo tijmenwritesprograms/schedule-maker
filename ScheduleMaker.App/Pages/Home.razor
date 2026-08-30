@@ -1,5 +1,6 @@
 ﻿@page "/"
 @using ScheduleMaker.App.Application
+@using ScheduleMaker.App.Domain
 @inject ApplicationStateStore StateStore
 @inject ConfigurationStateService ConfigurationStateService
 
@@ -7,6 +8,7 @@
 
 @{
     var validation = ConfigurationStateService.ValidateCurrentConfiguration();
+    var participants = GetParticipants();
 }
 
 <section class="welcome-panel" aria-labelledby="page-title">
@@ -19,6 +21,53 @@
 {
     <p class="error-message" role="alert">@StateStore.PersistenceError</p>
 }
+
+<section class="setup-panel" aria-labelledby="participants-title">
+    <div class="section-header">
+        <h2 id="participants-title">Participants</h2>
+        <p class="section-description">Add each person who should share recurring tasks.</p>
+    </div>
+
+    <form class="participant-form" @onsubmit="AddParticipantAsync" @onsubmit:preventDefault="true">
+        <div class="participant-field">
+            <label for="participant-name">Participant name</label>
+            <input id="participant-name"
+                   class="participant-input"
+                   @bind="participantName"
+                   @bind:event="oninput"
+                   aria-describedby="@GetParticipantFieldDescription()" />
+            <p id="participant-help" class="field-help">Enter one name at a time, then select Add participant.</p>
+            @if (!string.IsNullOrWhiteSpace(participantErrorMessage))
+            {
+                <p id="participant-feedback" class="field-error" role="alert">@participantErrorMessage</p>
+            }
+        </div>
+
+        <button type="submit" class="primary-action">Add participant</button>
+    </form>
+
+    @if (participants.Count == 0)
+    {
+        <p class="empty-state">Add your first participant above to start building the schedule.</p>
+    }
+    else
+    {
+        <ul class="participant-list" role="list" aria-label="Participants">
+            @foreach (var participant in participants)
+            {
+                <li class="participant-list-item" @key="participant.Id">
+                    <span>@participant.Name</span>
+                    <button type="button"
+                            class="secondary-action"
+                            aria-label="Remove @participant.Name"
+                            @onclick="() => RemoveParticipantAsync(participant.Id)">
+                        Remove
+                    </button>
+                </li>
+            }
+        </ul>
+    }
+</section>
 
 <section class="setup-panel" aria-labelledby="setup-title">
     <h2 id="setup-title">Your schedule</h2>
@@ -34,3 +83,37 @@
         </ul>
     }
 </section>
+
+@code {
+    private string participantName = string.Empty;
+    private string? participantErrorMessage;
+
+    private IReadOnlyList<Participant> GetParticipants() =>
+        StateStore.Current.Participants
+            .OrderBy(participant => participant.SortOrder)
+            .ToList();
+
+    private async Task AddParticipantAsync()
+    {
+        var result = await ConfigurationStateService.AddParticipantAsync(participantName);
+        if (result.IsSuccess)
+        {
+            participantName = string.Empty;
+            participantErrorMessage = null;
+            return;
+        }
+
+        participantErrorMessage = result.ErrorMessage;
+    }
+
+    private async Task RemoveParticipantAsync(Guid participantId)
+    {
+        var result = await ConfigurationStateService.RemoveParticipantAsync(participantId);
+        participantErrorMessage = result.IsSuccess ? null : result.ErrorMessage;
+    }
+
+    private string GetParticipantFieldDescription() =>
+        string.IsNullOrWhiteSpace(participantErrorMessage)
+            ? "participant-help"
+            : "participant-help participant-feedback";
+}
