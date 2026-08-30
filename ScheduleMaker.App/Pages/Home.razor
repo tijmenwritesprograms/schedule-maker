@@ -1,7 +1,25 @@
 ﻿@page "/"
+@using ScheduleMaker.App.Application
+@inject ApplicationStateStore StateStore
 
-<PageTitle>Home</PageTitle>
+<PageTitle>Schedule Maker</PageTitle>
 
-<h1>Hello, world!</h1>
+<section class="welcome-panel" aria-labelledby="page-title">
+    <p class="eyebrow">Schedule Maker</p>
+    <h1 id="page-title">Build a fair schedule</h1>
+    <p class="intro">Add your participants, event types, and dated events to get started.</p>
+</section>
 
-Welcome to your new app.
+<section class="setup-panel" aria-labelledby="setup-title">
+    <h2 id="setup-title">Your schedule</h2>
+    @if (StateStore.Current.Participants.Count == 0 &&
+         StateStore.Current.EventTypes.Count == 0 &&
+         StateStore.Current.ScheduledEvents.Count == 0)
+    {
+        <p class="empty-state">Your schedule is empty. Add participants to begin.</p>
+    }
+    else
+    {
+        <p class="empty-state">Your configuration is ready to manage.</p>
+    }
+</section>

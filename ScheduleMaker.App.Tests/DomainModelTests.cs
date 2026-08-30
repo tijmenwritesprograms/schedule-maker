@@ -106,4 +106,16 @@ public sealed class DomainModelTests
     {
         Assert.Throws<ArgumentOutOfRangeException>(() => new ParticipantAssignmentTotal(Guid.NewGuid(), "Alex", -1));
     }
+
+    [Fact]
+    public void ApplicationStateStore_Starts_With_Empty_State()
+    {
+        var store = new ApplicationStateStore();
+
+        Assert.Empty(store.Current.Participants);
+        Assert.Empty(store.Current.EventTypes);
+        Assert.Empty(store.Current.ScheduledEvents);
+        Assert.Null(store.Current.LatestSchedule);
+        Assert.False(store.Current.IsScheduleStale);
+    }
 }
