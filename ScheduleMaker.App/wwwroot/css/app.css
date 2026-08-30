@@ -75,9 +75,79 @@
         content: var(--blazor-load-percentage-text, "Loading");
     }
 
-code {
-    color: #c02d76;
+    .app-shell {
+        min-height: 100vh;
 }
+
+    .app-header {
+        align-items: center;
+        background: #1f2937;
+        color: white;
+        display: flex;
+        gap: 2rem;
+        justify-content: space-between;
+        padding: 1rem 2rem;
+    }
+
+    .brand {
+        color: inherit;
+        font-size: 1.25rem;
+        font-weight: 700;
+        text-decoration: none;
+    }
+
+    .app-header nav {
+        display: flex;
+        gap: 1rem;
+    }
+
+    .app-header nav a {
+        color: #d1d5db;
+        text-decoration: none;
+    }
+
+    .app-header nav a.active,
+    .app-header nav a:focus,
+    .app-header nav a:hover {
+        color: white;
+        text-decoration: underline;
+    }
+
+    .app-main {
+        margin: 0 auto;
+        max-width: 60rem;
+        padding: 3rem 2rem;
+    }
+
+    .welcome-panel,
+    .setup-panel {
+        background: white;
+        border: 1px solid #e5e7eb;
+        border-radius: 0.75rem;
+        margin-bottom: 1.5rem;
+        padding: 2rem;
+    }
+
+    .eyebrow {
+        color: #2563eb;
+        font-size: 0.8rem;
+        font-weight: 700;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+    }
+
+    .intro,
+    .empty-state {
+        color: #4b5563;
+    }
+
+    .empty-state {
+        margin-bottom: 0;
+    }
+
+    code {
+        color: #c02d76;
+    }
 
 .form-floating > .form-control-plaintext::placeholder, .form-floating > .form-control::placeholder {
     color: var(--bs-secondary-color);
