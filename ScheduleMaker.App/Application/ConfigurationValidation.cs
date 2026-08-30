@@ -44,9 +44,10 @@ public static class ConfigurationValidation
         ValidateParticipants(state.Participants, issues);
         ValidateEventTypes(state.EventTypes, issues);
         ValidateScheduledEvents(state.ScheduledEvents, state.EventTypes, issues);
+        var nextStepMessage = DetermineNextStepMessage(state, issues);
         ValidateGenerationRequirements(state, issues);
 
-        return new ConfigurationValidationResult(issues, DetermineNextStepMessage(state, issues));
+        return new ConfigurationValidationResult(issues, nextStepMessage);
     }
 
     private static void ValidateParticipants(
@@ -150,7 +151,7 @@ public static class ConfigurationValidation
                     $"{DescribeEvent(scheduledEvent)} must reference an existing event type."));
             }
 
-            if (!string.IsNullOrWhiteSpace(scheduledEvent.Description) && scheduledEvent.Description.Trim().Length > 500)
+            if (scheduledEvent.Description is { Length: > 500 })
             {
                 issues.Add(new ConfigurationValidationIssue(
                     ConfigurationValidationScope.ScheduledEvent,

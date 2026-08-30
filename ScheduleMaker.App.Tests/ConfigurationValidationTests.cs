@@ -56,6 +56,7 @@ public sealed class ConfigurationValidationTests
         var result = ConfigurationValidation.Validate(state);
 
         Assert.False(result.CanGenerate);
+        Assert.Equal("Fix the validation errors below before generating a schedule.", result.NextStepMessage);
         Assert.Contains(result.Issues, issue => issue.EntityId == missingReferenceEvent.Id && issue.Message == "The event on 2026-09-01 must reference an existing event type.");
         Assert.Contains(result.Issues, issue => issue.EntityId == missingDateEvent.Id && issue.Message == "Events must have a date.");
     }
