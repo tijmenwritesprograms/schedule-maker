@@ -137,7 +137,7 @@ public sealed class ConfigurationStateService(ApplicationStateStore stateStore)
     public async Task<ApplicationOperationResult> EditEventTypeAsync(
         Guid eventTypeId,
         string eventTypeName,
-        IEnumerable<EventTypeTaskUpdate> taskUpdates,
+        IEnumerable<EventTypeTaskUpdate>? taskUpdates,
         CancellationToken cancellationToken = default)
     {
         var normalizedEventTypeName = NormalizeRequiredName(eventTypeName);

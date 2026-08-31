@@ -117,7 +117,7 @@ public sealed class HomePageTests
 
         var updated = context.Services.GetRequiredService<ApplicationStateStore>().Current.EventTypes.Single();
         Assert.Equal("Match", updated.Name);
-        Assert.Equal(["Cleanup", "Warm up"], updated.Tasks.Select(task => task.Name));
+        Assert.Equal(["Cleanup", "Warm up"], updated.Tasks.OrderBy(task => task.SortOrder).Select(task => task.Name));
         Assert.DoesNotContain("Save changes", cut.Markup);
     }
 
