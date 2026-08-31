@@ -220,6 +220,54 @@ public sealed class ConfigurationStateServiceTests
     }
 
     [Fact]
+    public async Task EditEventType_Trims_Renames_Reorders_Adds_And_Removes_Tasks()
+    {
+        var setup = new TaskDefinition(Guid.NewGuid(), "Setup", 0);
+        var cleanup = new TaskDefinition(Guid.NewGuid(), "Cleanup", 1);
+        var eventType = new EventType(Guid.NewGuid(), "Practice", [setup, cleanup]);
+        var schedule = new GeneratedSchedule(Guid.NewGuid(), DateTimeOffset.UtcNow, [], []);
+        var persistence = new FakePersistence(new ApplicationState([], [eventType], [], schedule, false));
+        var stateStore = new ApplicationStateStore(persistence);
+        await stateStore.InitializeAsync();
+        var service = new ConfigurationStateService(stateStore);
+
+        var result = await service.EditEventTypeAsync(eventType.Id, "  Match  ",
+            [new EventTypeTaskUpdate(cleanup.Id, "  Tidy  "), new EventTypeTaskUpdate(null, "Warm up")]);
+
+        Assert.True(result.IsSuccess);
+        var updated = stateStore.Current.EventTypes.Single();
+        Assert.Equal("Match", updated.Name);
+        Assert.Equal(["Tidy", "Warm up"], updated.Tasks.Select(task => task.Name));
+        Assert.Equal(cleanup.Id, updated.Tasks[0].Id);
+        Assert.True(stateStore.Current.IsScheduleStale);
+        Assert.Equal(1, persistence.SaveCount);
+    }
+
+    [Fact]
+    public async Task EditEventType_Rejects_Duplicate_Or_Blank_Names_Without_Persisting()
+    {
+        var first = new TaskDefinition(Guid.NewGuid(), "Setup", 0);
+        var second = new TaskDefinition(Guid.NewGuid(), "Cleanup", 1);
+        var eventType = new EventType(Guid.NewGuid(), "Practice", [first, second]);
+        var persistence = new FakePersistence(new ApplicationState([], [eventType], [], null, false));
+        var stateStore = new ApplicationStateStore(persistence);
+        await stateStore.InitializeAsync();
+        var service = new ConfigurationStateService(stateStore);
+
+        var duplicate = await service.EditEventTypeAsync(eventType.Id, "Practice",
+            [new EventTypeTaskUpdate(first.Id, "Setup"), new EventTypeTaskUpdate(second.Id, " setup ")]);
+        var blank = await service.EditEventTypeAsync(eventType.Id, " ",
+            [new EventTypeTaskUpdate(first.Id, "Setup")]);
+
+        Assert.False(duplicate.IsSuccess);
+        Assert.Equal("Task names must be unique per event type.", duplicate.ErrorMessage);
+        Assert.False(blank.IsSuccess);
+        Assert.Equal("Event type name is required.", blank.ErrorMessage);
+        Assert.Equal(0, persistence.SaveCount);
+        Assert.Equal("Practice", stateStore.Current.EventTypes.Single().Name);
+    }
+
+    [Fact]
     public async Task ApplyGeneratedSchedule_Updates_Schedule_Only_On_Success()
     {
         var participant = new Participant(Guid.NewGuid(), "Alex", 0);
