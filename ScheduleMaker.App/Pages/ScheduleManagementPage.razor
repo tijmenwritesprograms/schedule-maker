@@ -1,0 +1,511 @@
+@page "/schedule"
+@using ScheduleMaker.App.Application
+@using ScheduleMaker.App.Domain
+@using System.Globalization
+@inject ApplicationStateStore StateStore
+@inject ConfigurationStateService ConfigurationStateService
+
+<PageTitle>Schedule - Schedule Maker</PageTitle>
+
+@{
+    var validation = ConfigurationStateService.ValidateCurrentConfiguration();
+}
+
+<section class="welcome-panel" aria-labelledby="page-title">
+    <p class="eyebrow">Schedule Maker</p>
+    <h1 id="page-title">Build your schedule</h1>
+    <p class="intro">Add dated events, generate assignments, and review the latest schedule.</p>
+</section>
+
+@if (!string.IsNullOrWhiteSpace(StateStore.PersistenceError))
+{
+    <p class="error-message" role="alert">@StateStore.PersistenceError</p>
+}
+
+<section class="setup-panel" aria-labelledby="events-title">
+    <div class="section-header">
+        <h2 id="events-title">Dated events</h2>
+        <p class="section-description">Add each event date and choose the event type whose tasks should be scheduled.</p>
+    </div>
+
+    @if (eventTypes.Count == 0)
+    {
+        <p class="empty-state">Add an event type before creating a dated event.</p>
+    }
+    else
+    {
+        <form class="event-form" @onsubmit="AddScheduledEventAsync" @onsubmit:preventDefault="true">
+            @if (!string.IsNullOrWhiteSpace(scheduledEventErrorMessage))
+            {
+                <p class="field-error" role="alert">@scheduledEventErrorMessage</p>
+            }
+            <div class="event-form-field">
+                <label for="scheduled-event-date">Date</label>
+                <input id="scheduled-event-date"
+                       type="date"
+                       class="participant-input"
+                       @bind="scheduledEventDate"
+                       aria-describedby="scheduled-event-date-help scheduled-event-date-error"
+                       aria-invalid="@(!string.IsNullOrWhiteSpace(scheduledEventDateErrorMessage))" />
+                <p id="scheduled-event-date-help" class="field-help">Choose when this event takes place.</p>
+                @if (!string.IsNullOrWhiteSpace(scheduledEventDateErrorMessage))
+                {
+                    <p id="scheduled-event-date-error" class="field-error" role="alert">@scheduledEventDateErrorMessage</p>
+                }
+            </div>
+            <div class="event-form-field">
+                <label for="scheduled-event-type">Event type</label>
+                <select id="scheduled-event-type"
+                        class="participant-input"
+                        @bind="selectedEventTypeId"
+                        aria-describedby="scheduled-event-type-error"
+                        aria-invalid="@(!string.IsNullOrWhiteSpace(scheduledEventTypeErrorMessage))">
+                    <option value="">Select an event type</option>
+                    @foreach (var eventType in eventTypes)
+                    {
+                        <option value="@eventType.Id">@eventType.Name</option>
+                    }
+                </select>
+                @if (!string.IsNullOrWhiteSpace(scheduledEventTypeErrorMessage))
+                {
+                    <p id="scheduled-event-type-error" class="field-error" role="alert">@scheduledEventTypeErrorMessage</p>
+                }
+            </div>
+            <div class="event-form-field event-description-field">
+                <label for="scheduled-event-description">Description <span>(optional)</span></label>
+                <textarea id="scheduled-event-description"
+                          class="participant-input"
+                          maxlength="500"
+                          rows="3"
+                          @bind="scheduledEventDescription"
+                          aria-describedby="scheduled-event-description-help"></textarea>
+                <p id="scheduled-event-description-help" class="field-help">Up to 500 characters.</p>
+            </div>
+            <button type="submit" class="primary-action">Add event</button>
+        </form>
+    }
+
+    @if (scheduledEvents.Count == 0)
+    {
+        <p class="empty-state">No dated events yet. An event type and date are required.</p>
+    }
+    else
+    {
+        @if (!string.IsNullOrWhiteSpace(removeScheduledEventErrorMessage))
+        {
+            <p class="field-error" role="alert">@removeScheduledEventErrorMessage</p>
+        }
+        <ol class="scheduled-event-list" aria-label="Dated events">
+            @foreach (var scheduledEvent in scheduledEvents)
+            {
+                var eventType = eventTypes.FirstOrDefault(candidate => candidate.Id == scheduledEvent.EventTypeId);
+                <li class="scheduled-event-card" @key="scheduledEvent.Id">
+                    <div>
+                        <p class="scheduled-event-date">@scheduledEvent.Date.ToString("MMMM d, yyyy", CultureInfo.CurrentCulture)</p>
+                        @if (eventType is null)
+                        {
+                            <p class="field-error" role="alert">Missing event type (this event type was deleted).</p>
+                        }
+                        else
+                        {
+                            <h3>@eventType.Name</h3>
+                        }
+                        @if (!string.IsNullOrWhiteSpace(scheduledEvent.Description))
+                        {
+                            <p class="scheduled-event-description">@scheduledEvent.Description</p>
+                        }
+                    </div>
+                    <button type="button"
+                            class="secondary-action"
+                            aria-label="@($"Remove {eventType?.Name ?? "event with missing type"} on {scheduledEvent.Date:d}")"
+                            @onclick="() => RemoveScheduledEventAsync(scheduledEvent.Id)">
+                        Remove event
+                    </button>
+                </li>
+            }
+        </ol>
+    }
+</section>
+
+
+<section class="setup-panel" aria-labelledby="setup-title">
+    <div class="section-header schedule-header">
+        <div>
+            <h2 id="setup-title">Generated schedule</h2>
+            <p class="section-description">@GetGeneratedScheduleDescription(validation)</p>
+        </div>
+        <button type="button"
+                id="generate-schedule"
+                class="primary-action"
+                disabled="@(!validation.CanGenerate || isGeneratingSchedule)"
+                @onclick="GenerateScheduleAsync">
+            @GetGenerateScheduleActionLabel()
+        </button>
+    </div>
+
+    @if (isGeneratingSchedule)
+    {
+        <p class="empty-state" role="status" aria-live="polite">Generating schedule…</p>
+    }
+
+    @if (!string.IsNullOrWhiteSpace(scheduleGenerationErrorMessage))
+    {
+        <p class="field-error" role="alert">@scheduleGenerationErrorMessage</p>
+    }
+
+    @if (StateStore.Current.LatestSchedule is null)
+    {
+        <p class="empty-state">@GetNoScheduleMessage(validation)</p>
+    }
+    else
+    {
+        var latestSchedule = StateStore.Current.LatestSchedule;
+        <section class="schedule-results" aria-label="Generated schedule results">
+            <div class="schedule-status-panel @(StateStore.Current.IsScheduleStale ? "schedule-status-panel-stale" : "schedule-status-panel-current")"
+                 role="status" aria-live="polite" aria-atomic="true">
+                <p class="schedule-status-label">@GetScheduleStatusLabel()</p>
+                <p class="schedule-status-message">@GetScheduleStatusMessage(validation)</p>
+                <p class="schedule-generated-at">Generated @latestSchedule.GeneratedAtUtc.ToLocalTime().ToString("f", CultureInfo.CurrentCulture)</p>
+            </div>
+
+            @if (latestSchedule.Events.Count == 0)
+            {
+                <p class="empty-state">No assignments are available in the latest generated schedule.</p>
+            }
+            else
+            {
+                <div class="generated-schedule-layout">
+                    <div>
+                        <h3>Assignments by event</h3>
+                        <ol class="generated-schedule-event-list" aria-label="Generated assignments by event">
+                            @foreach (var generatedEvent in latestSchedule.Events)
+                            {
+                                <li class="generated-schedule-event-card" @key="generatedEvent.ScheduledEventId">
+                                    <div class="generated-schedule-event-header">
+                                        <div>
+                                            <p class="scheduled-event-date">@generatedEvent.Date.ToString("MMMM d, yyyy", CultureInfo.CurrentCulture)</p>
+                                            <h4>@generatedEvent.EventTypeNameSnapshot</h4>
+                                        </div>
+                                    </div>
+
+                                    @if (!string.IsNullOrWhiteSpace(generatedEvent.EventDescriptionSnapshot))
+                                    {
+                                        <p class="scheduled-event-description">@generatedEvent.EventDescriptionSnapshot</p>
+                                    }
+
+                                    <ul class="generated-task-list" aria-label="@($"Assignments for {generatedEvent.EventTypeNameSnapshot} on {generatedEvent.Date:MMMM d, yyyy}")">
+                                        @foreach (var assignment in generatedEvent.Assignments)
+                                        {
+                                            <li @key="assignment.TaskDefinitionId">
+                                                <span class="generated-task-name">@assignment.TaskNameSnapshot</span>
+                                                <span class="generated-task-participant">@assignment.ParticipantNameSnapshot</span>
+                                            </li>
+                                        }
+                                    </ul>
+                                </li>
+                            }
+                        </ol>
+                    </div>
+
+                    <div>
+                        <h3>Assignment totals</h3>
+                        <ul class="assignment-total-list" aria-label="Assignment totals by participant">
+                            @foreach (var total in latestSchedule.ParticipantTotals.OrderBy(total => total.ParticipantNameSnapshot, StringComparer.OrdinalIgnoreCase))
+                            {
+                                <li @key="total.ParticipantId">
+                                    <span>@total.ParticipantNameSnapshot</span>
+                                    <strong>@total.AssignmentCount</strong>
+                                </li>
+                            }
+                        </ul>
+                    </div>
+                </div>
+            }
+        </section>
+    }
+
+    @if (validation.Issues.Count > 0)
+    {
+        <div role="status" aria-live="polite" aria-atomic="true">
+            <ul class="validation-summary" role="list">
+                @foreach (var issue in validation.Issues)
+                {
+                    <li>@issue.Message</li>
+                }
+            </ul>
+        </div>
+    }
+</section>
+
+
+<section class="navigation-footer" aria-label="Team setup">
+    <p>Need to change participants or tasks? <a href="/team">Go to team setup</a>.</p>
+</section>
+
+@code {
+    private string participantName = string.Empty;
+    private string? participantInputErrorMessage;
+    private string? participantListErrorMessage;
+    private IReadOnlyList<Participant> participants = [];
+    private IReadOnlyList<EventType> eventTypes = [];
+    private string eventTypeName = string.Empty;
+    private string? eventTypeInputErrorMessage;
+    private readonly Dictionary<Guid, string> taskNames = [];
+    private readonly Dictionary<Guid, string> taskInputErrorMessages = [];
+    private DateTime? scheduledEventDate;
+    private string selectedEventTypeId = string.Empty;
+    private string scheduledEventDescription = string.Empty;
+    private string? scheduledEventDateErrorMessage;
+    private string? scheduledEventTypeErrorMessage;
+    private string? scheduledEventErrorMessage;
+    private string? removeScheduledEventErrorMessage;
+    private string? scheduleGenerationErrorMessage;
+    private bool isGeneratingSchedule;
+    private IReadOnlyList<ScheduledEvent> scheduledEvents = [];
+
+    protected override void OnInitialized()
+    {
+        RefreshParticipants();
+        RefreshEventTypes();
+        RefreshScheduledEvents();
+    }
+
+    private async Task AddEventTypeAsync()
+    {
+        var result = await ConfigurationStateService.AddEventTypeAsync(eventTypeName);
+        if (result.IsSuccess)
+        {
+            eventTypeName = string.Empty;
+            eventTypeInputErrorMessage = null;
+            scheduleGenerationErrorMessage = null;
+            RefreshEventTypes();
+        }
+        else
+        {
+            eventTypeInputErrorMessage = result.ErrorMessage;
+        }
+    }
+
+    private async Task AddTaskAsync(Guid eventTypeId)
+    {
+        var taskName = taskNames.GetValueOrDefault(eventTypeId, string.Empty);
+        var result = await ConfigurationStateService.AddTaskAsync(eventTypeId, taskName);
+        if (result.IsSuccess)
+        {
+            taskNames[eventTypeId] = string.Empty;
+            taskInputErrorMessages.Remove(eventTypeId);
+            scheduleGenerationErrorMessage = null;
+            RefreshEventTypes();
+        }
+        else
+        {
+            taskInputErrorMessages[eventTypeId] = result.ErrorMessage ?? "Task could not be added.";
+        }
+    }
+
+    private async Task RemoveTaskAsync(Guid eventTypeId, Guid taskId)
+    {
+        var result = await ConfigurationStateService.RemoveTaskAsync(eventTypeId, taskId);
+        if (result.IsSuccess)
+        {
+            taskInputErrorMessages.Remove(eventTypeId);
+            scheduleGenerationErrorMessage = null;
+            RefreshEventTypes();
+        }
+        else
+        {
+            taskInputErrorMessages[eventTypeId] = result.ErrorMessage ?? "Task could not be removed.";
+        }
+    }
+
+    private async Task RemoveEventTypeAsync(Guid eventTypeId)
+    {
+        var result = await ConfigurationStateService.RemoveEventTypeAsync(eventTypeId);
+        if (result.IsSuccess)
+        {
+            taskNames.Remove(eventTypeId);
+            taskInputErrorMessages.Remove(eventTypeId);
+            scheduleGenerationErrorMessage = null;
+            RefreshEventTypes();
+        }
+        else
+        {
+            eventTypeInputErrorMessage = result.ErrorMessage;
+        }
+    }
+
+    private async Task AddParticipantAsync()
+    {
+        var result = await ConfigurationStateService.AddParticipantAsync(participantName);
+        if (result.IsSuccess)
+        {
+            participantName = string.Empty;
+            participantInputErrorMessage = null;
+            participantListErrorMessage = null;
+            scheduleGenerationErrorMessage = null;
+            RefreshParticipants();
+            return;
+        }
+
+        participantInputErrorMessage = result.ErrorMessage;
+        participantListErrorMessage = null;
+    }
+
+    private async Task RemoveParticipantAsync(Guid participantId)
+    {
+        participantInputErrorMessage = null;
+        var result = await ConfigurationStateService.RemoveParticipantAsync(participantId);
+        if (result.IsSuccess)
+        {
+            participantListErrorMessage = null;
+            scheduleGenerationErrorMessage = null;
+            RefreshParticipants();
+        }
+        else
+        {
+            participantListErrorMessage = result.ErrorMessage;
+        }
+    }
+
+    private async Task AddScheduledEventAsync()
+    {
+        scheduledEventDateErrorMessage = null;
+        scheduledEventTypeErrorMessage = null;
+        scheduledEventErrorMessage = null;
+
+        if (scheduledEventDate is null)
+        {
+            scheduledEventDateErrorMessage = "Choose a date.";
+            return;
+        }
+
+        var date = DateOnly.FromDateTime(scheduledEventDate.Value);
+
+        if (!Guid.TryParse(selectedEventTypeId, out var eventTypeId))
+        {
+            scheduledEventTypeErrorMessage = "Select an event type.";
+            return;
+        }
+
+        var result = await ConfigurationStateService.AddScheduledEventAsync(date, eventTypeId, scheduledEventDescription);
+        if (result.IsSuccess)
+        {
+            scheduledEventDate = null;
+            selectedEventTypeId = string.Empty;
+            scheduledEventDescription = string.Empty;
+            scheduleGenerationErrorMessage = null;
+            RefreshScheduledEvents();
+            return;
+        }
+
+        scheduledEventErrorMessage = result.ErrorMessage;
+    }
+
+    private async Task RemoveScheduledEventAsync(Guid scheduledEventId)
+    {
+        var result = await ConfigurationStateService.RemoveScheduledEventAsync(scheduledEventId);
+        if (result.IsSuccess)
+        {
+            removeScheduledEventErrorMessage = null;
+            scheduleGenerationErrorMessage = null;
+            RefreshScheduledEvents();
+        }
+        else
+        {
+            removeScheduledEventErrorMessage = result.ErrorMessage;
+        }
+    }
+
+    private async Task GenerateScheduleAsync()
+    {
+        scheduleGenerationErrorMessage = null;
+        isGeneratingSchedule = true;
+
+        try
+        {
+            var result = await ConfigurationStateService.GenerateScheduleAsync();
+            if (!result.IsSuccess)
+            {
+                scheduleGenerationErrorMessage = result.ErrorMessage ?? "Schedule generation failed.";
+            }
+        }
+        finally
+        {
+            isGeneratingSchedule = false;
+        }
+    }
+
+    private string GetGenerateScheduleActionLabel()
+    {
+        if (isGeneratingSchedule)
+        {
+            return "Generating schedule...";
+        }
+
+        return StateStore.Current.LatestSchedule is null
+            ? "Generate schedule"
+            : "Regenerate schedule";
+    }
+
+    private string GetNoScheduleMessage(ConfigurationValidationResult validation) =>
+        validation.CanGenerate
+            ? "No schedule has been generated yet. Select Generate schedule to create one."
+            : "No schedule has been generated yet. Complete the setup steps below to create one.";
+
+    private string GetGeneratedScheduleDescription(ConfigurationValidationResult validation)
+    {
+        if (StateStore.Current.LatestSchedule is null)
+        {
+            return validation.NextStepMessage;
+        }
+
+        return StateStore.Current.IsScheduleStale
+            ? "Review the latest assignments below, then regenerate when you are ready."
+            : "Review the latest generated assignments and totals below.";
+    }
+
+    private string GetScheduleStatusLabel() =>
+        StateStore.Current.IsScheduleStale ? "Stale schedule" : "Current schedule";
+
+    private string GetScheduleStatusMessage(ConfigurationValidationResult validation)
+    {
+        if (!StateStore.Current.IsScheduleStale)
+        {
+            return "This schedule matches your current configuration.";
+        }
+
+        return validation.CanGenerate
+            ? "Configuration changed since this schedule was generated. Regenerate to refresh the assignments."
+            : "Configuration changed since this schedule was generated. Fix the validation issues below, then generate again.";
+    }
+
+    private string GetParticipantFieldDescription() =>
+        string.IsNullOrWhiteSpace(participantInputErrorMessage)
+            ? "participant-help"
+            : "participant-help participant-feedback";
+
+    private void RefreshParticipants()
+    {
+        participants = StateStore.Current.Participants
+            .OrderBy(participant => participant.SortOrder)
+            .ToList();
+    }
+
+    private void RefreshEventTypes()
+    {
+        eventTypes = StateStore.Current.EventTypes
+            .OrderBy(eventType => eventType.Name, StringComparer.OrdinalIgnoreCase)
+            .ToList();
+        foreach (var eventType in eventTypes)
+        {
+            taskNames.TryAdd(eventType.Id, string.Empty);
+        }
+    }
+
+    private void RefreshScheduledEvents()
+    {
+        scheduledEvents = StateStore.Current.ScheduledEvents
+            .OrderBy(scheduledEvent => scheduledEvent.Date)
+            .ToList();
+    }
+}
