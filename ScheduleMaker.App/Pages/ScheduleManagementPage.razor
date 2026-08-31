@@ -243,15 +243,7 @@
 </section>
 
 @code {
-    private string participantName = string.Empty;
-    private string? participantInputErrorMessage;
-    private string? participantListErrorMessage;
-    private IReadOnlyList<Participant> participants = [];
     private IReadOnlyList<EventType> eventTypes = [];
-    private string eventTypeName = string.Empty;
-    private string? eventTypeInputErrorMessage;
-    private readonly Dictionary<Guid, string> taskNames = [];
-    private readonly Dictionary<Guid, string> taskInputErrorMessages = [];
     private DateTime? scheduledEventDate;
     private string selectedEventTypeId = string.Empty;
     private string scheduledEventDescription = string.Empty;
@@ -265,106 +257,8 @@
 
     protected override void OnInitialized()
     {
-        RefreshParticipants();
         RefreshEventTypes();
         RefreshScheduledEvents();
-    }
-
-    private async Task AddEventTypeAsync()
-    {
-        var result = await ConfigurationStateService.AddEventTypeAsync(eventTypeName);
-        if (result.IsSuccess)
-        {
-            eventTypeName = string.Empty;
-            eventTypeInputErrorMessage = null;
-            scheduleGenerationErrorMessage = null;
-            RefreshEventTypes();
-        }
-        else
-        {
-            eventTypeInputErrorMessage = result.ErrorMessage;
-        }
-    }
-
-    private async Task AddTaskAsync(Guid eventTypeId)
-    {
-        var taskName = taskNames.GetValueOrDefault(eventTypeId, string.Empty);
-        var result = await ConfigurationStateService.AddTaskAsync(eventTypeId, taskName);
-        if (result.IsSuccess)
-        {
-            taskNames[eventTypeId] = string.Empty;
-            taskInputErrorMessages.Remove(eventTypeId);
-            scheduleGenerationErrorMessage = null;
-            RefreshEventTypes();
-        }
-        else
-        {
-            taskInputErrorMessages[eventTypeId] = result.ErrorMessage ?? "Task could not be added.";
-        }
-    }
-
-    private async Task RemoveTaskAsync(Guid eventTypeId, Guid taskId)
-    {
-        var result = await ConfigurationStateService.RemoveTaskAsync(eventTypeId, taskId);
-        if (result.IsSuccess)
-        {
-            taskInputErrorMessages.Remove(eventTypeId);
-            scheduleGenerationErrorMessage = null;
-            RefreshEventTypes();
-        }
-        else
-        {
-            taskInputErrorMessages[eventTypeId] = result.ErrorMessage ?? "Task could not be removed.";
-        }
-    }
-
-    private async Task RemoveEventTypeAsync(Guid eventTypeId)
-    {
-        var result = await ConfigurationStateService.RemoveEventTypeAsync(eventTypeId);
-        if (result.IsSuccess)
-        {
-            taskNames.Remove(eventTypeId);
-            taskInputErrorMessages.Remove(eventTypeId);
-            scheduleGenerationErrorMessage = null;
-            RefreshEventTypes();
-        }
-        else
-        {
-            eventTypeInputErrorMessage = result.ErrorMessage;
-        }
-    }
-
-    private async Task AddParticipantAsync()
-    {
-        var result = await ConfigurationStateService.AddParticipantAsync(participantName);
-        if (result.IsSuccess)
-        {
-            participantName = string.Empty;
-            participantInputErrorMessage = null;
-            participantListErrorMessage = null;
-            scheduleGenerationErrorMessage = null;
-            RefreshParticipants();
-            return;
-        }
-
-        participantInputErrorMessage = result.ErrorMessage;
-        participantListErrorMessage = null;
-    }
-
-    private async Task RemoveParticipantAsync(Guid participantId)
-    {
-        participantInputErrorMessage = null;
-        var result = await ConfigurationStateService.RemoveParticipantAsync(participantId);
-        if (result.IsSuccess)
-        {
-            participantListErrorMessage = null;
-            scheduleGenerationErrorMessage = null;
-            RefreshParticipants();
-        }
-        else
-        {
-            participantListErrorMessage = result.ErrorMessage;
-        }
     }
 
     private async Task AddScheduledEventAsync()
@@ -479,27 +373,11 @@
             : "Configuration changed since this schedule was generated. Fix the validation issues below, then generate again.";
     }
 
-    private string GetParticipantFieldDescription() =>
-        string.IsNullOrWhiteSpace(participantInputErrorMessage)
-            ? "participant-help"
-            : "participant-help participant-feedback";
-
-    private void RefreshParticipants()
-    {
-        participants = StateStore.Current.Participants
-            .OrderBy(participant => participant.SortOrder)
-            .ToList();
-    }
-
     private void RefreshEventTypes()
     {
         eventTypes = StateStore.Current.EventTypes
             .OrderBy(eventType => eventType.Name, StringComparer.OrdinalIgnoreCase)
             .ToList();
-        foreach (var eventType in eventTypes)
-        {
-            taskNames.TryAdd(eventType.Id, string.Empty);
-        }
     }
 
     private void RefreshScheduledEvents()

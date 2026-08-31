@@ -176,22 +176,11 @@
     private string? eventTypeInputErrorMessage;
     private readonly Dictionary<Guid, string> taskNames = [];
     private readonly Dictionary<Guid, string> taskInputErrorMessages = [];
-    private DateTime? scheduledEventDate;
-    private string selectedEventTypeId = string.Empty;
-    private string scheduledEventDescription = string.Empty;
-    private string? scheduledEventDateErrorMessage;
-    private string? scheduledEventTypeErrorMessage;
-    private string? scheduledEventErrorMessage;
-    private string? removeScheduledEventErrorMessage;
-    private string? scheduleGenerationErrorMessage;
-    private bool isGeneratingSchedule;
-    private IReadOnlyList<ScheduledEvent> scheduledEvents = [];
 
     protected override void OnInitialized()
     {
         RefreshParticipants();
         RefreshEventTypes();
-        RefreshScheduledEvents();
     }
 
     private async Task AddEventTypeAsync()
@@ -201,7 +190,6 @@
         {
             eventTypeName = string.Empty;
             eventTypeInputErrorMessage = null;
-            scheduleGenerationErrorMessage = null;
             RefreshEventTypes();
         }
         else
@@ -218,7 +206,6 @@
         {
             taskNames[eventTypeId] = string.Empty;
             taskInputErrorMessages.Remove(eventTypeId);
-            scheduleGenerationErrorMessage = null;
             RefreshEventTypes();
         }
         else
@@ -233,7 +220,6 @@
         if (result.IsSuccess)
         {
             taskInputErrorMessages.Remove(eventTypeId);
-            scheduleGenerationErrorMessage = null;
             RefreshEventTypes();
         }
         else
@@ -249,7 +235,6 @@
         {
             taskNames.Remove(eventTypeId);
             taskInputErrorMessages.Remove(eventTypeId);
-            scheduleGenerationErrorMessage = null;
             RefreshEventTypes();
         }
         else
@@ -266,7 +251,6 @@
             participantName = string.Empty;
             participantInputErrorMessage = null;
             participantListErrorMessage = null;
-            scheduleGenerationErrorMessage = null;
             RefreshParticipants();
             return;
         }
@@ -282,125 +266,12 @@
         if (result.IsSuccess)
         {
             participantListErrorMessage = null;
-            scheduleGenerationErrorMessage = null;
             RefreshParticipants();
         }
         else
         {
             participantListErrorMessage = result.ErrorMessage;
         }
-    }
-
-    private async Task AddScheduledEventAsync()
-    {
-        scheduledEventDateErrorMessage = null;
-        scheduledEventTypeErrorMessage = null;
-        scheduledEventErrorMessage = null;
-
-        if (scheduledEventDate is null)
-        {
-            scheduledEventDateErrorMessage = "Choose a date.";
-            return;
-        }
-
-        var date = DateOnly.FromDateTime(scheduledEventDate.Value);
-
-        if (!Guid.TryParse(selectedEventTypeId, out var eventTypeId))
-        {
-            scheduledEventTypeErrorMessage = "Select an event type.";
-            return;
-        }
-
-        var result = await ConfigurationStateService.AddScheduledEventAsync(date, eventTypeId, scheduledEventDescription);
-        if (result.IsSuccess)
-        {
-            scheduledEventDate = null;
-            selectedEventTypeId = string.Empty;
-            scheduledEventDescription = string.Empty;
-            scheduleGenerationErrorMessage = null;
-            RefreshScheduledEvents();
-            return;
-        }
-
-        scheduledEventErrorMessage = result.ErrorMessage;
-    }
-
-    private async Task RemoveScheduledEventAsync(Guid scheduledEventId)
-    {
-        var result = await ConfigurationStateService.RemoveScheduledEventAsync(scheduledEventId);
-        if (result.IsSuccess)
-        {
-            removeScheduledEventErrorMessage = null;
-            scheduleGenerationErrorMessage = null;
-            RefreshScheduledEvents();
-        }
-        else
-        {
-            removeScheduledEventErrorMessage = result.ErrorMessage;
-        }
-    }
-
-    private async Task GenerateScheduleAsync()
-    {
-        scheduleGenerationErrorMessage = null;
-        isGeneratingSchedule = true;
-
-        try
-        {
-            var result = await ConfigurationStateService.GenerateScheduleAsync();
-            if (!result.IsSuccess)
-            {
-                scheduleGenerationErrorMessage = result.ErrorMessage ?? "Schedule generation failed.";
-            }
-        }
-        finally
-        {
-            isGeneratingSchedule = false;
-        }
-    }
-
-    private string GetGenerateScheduleActionLabel()
-    {
-        if (isGeneratingSchedule)
-        {
-            return "Generating schedule...";
-        }
-
-        return StateStore.Current.LatestSchedule is null
-            ? "Generate schedule"
-            : "Regenerate schedule";
-    }
-
-    private string GetNoScheduleMessage(ConfigurationValidationResult validation) =>
-        validation.CanGenerate
-            ? "No schedule has been generated yet. Select Generate schedule to create one."
-            : "No schedule has been generated yet. Complete the setup steps below to create one.";
-
-    private string GetGeneratedScheduleDescription(ConfigurationValidationResult validation)
-    {
-        if (StateStore.Current.LatestSchedule is null)
-        {
-            return validation.NextStepMessage;
-        }
-
-        return StateStore.Current.IsScheduleStale
-            ? "Review the latest assignments below, then regenerate when you are ready."
-            : "Review the latest generated assignments and totals below.";
-    }
-
-    private string GetScheduleStatusLabel() =>
-        StateStore.Current.IsScheduleStale ? "Stale schedule" : "Current schedule";
-
-    private string GetScheduleStatusMessage(ConfigurationValidationResult validation)
-    {
-        if (!StateStore.Current.IsScheduleStale)
-        {
-            return "This schedule matches your current configuration.";
-        }
-
-        return validation.CanGenerate
-            ? "Configuration changed since this schedule was generated. Regenerate to refresh the assignments."
-            : "Configuration changed since this schedule was generated. Fix the validation issues below, then generate again.";
     }
 
     private string GetParticipantFieldDescription() =>
@@ -426,10 +297,4 @@
         }
     }
 
-    private void RefreshScheduledEvents()
-    {
-        scheduledEvents = StateStore.Current.ScheduledEvents
-            .OrderBy(scheduledEvent => scheduledEvent.Date)
-            .ToList();
-    }
 }
