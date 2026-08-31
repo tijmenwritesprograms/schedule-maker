@@ -120,9 +120,53 @@
                                 @onclick="() => RemoveEventTypeAsync(eventType.Id)">
                             Remove event type
                         </button>
+                        <button type="button"
+                                class="secondary-action"
+                                aria-label="@($"Edit event type {eventType.Name}")"
+                                @onclick="() => BeginEditEventType(eventType)">
+                            Edit
+                        </button>
                     </div>
 
-                    @if (eventType.Tasks.Count > 0)
+                    @if (editingEventTypeId == eventType.Id)
+                    {
+                        <form class="event-type-edit-form" @onsubmit="SaveEventTypeAsync" @onsubmit:preventDefault="true">
+                            <div class="participant-field">
+                                <label for="@($"edit-event-type-name-{eventType.Id}")">Event type name</label>
+                                <input id="@($"edit-event-type-name-{eventType.Id}")"
+                                       type="text"
+                                       class="participant-input"
+                                       @bind="editingEventTypeName"
+                                       @bind:event="oninput" />
+                            </div>
+                            <ol class="task-list" aria-label="@($"Tasks for {eventType.Name}")">
+                                @foreach (var task in editingTasks)
+                                {
+                                    <li @key="task.Key">
+                                        <input id="@($"edit-task-{task.Key}")"
+                                               type="text"
+                                               class="participant-input"
+                                               @bind="task.Name"
+                                               @bind:event="oninput"
+                                               aria-label="Task name" />
+                                        <button type="button" class="secondary-action" @onclick="() => MoveTask(task.Key, -1)" disabled="@(!CanMoveTask(task.Key, -1))">Move up</button>
+                                        <button type="button" class="secondary-action" @onclick="() => MoveTask(task.Key, 1)" disabled="@(!CanMoveTask(task.Key, 1))">Move down</button>
+                                        <button type="button" class="secondary-action" @onclick="() => RemoveEditingTask(task.Key)">Remove</button>
+                                    </li>
+                                }
+                            </ol>
+                            <button type="button" class="secondary-action" @onclick="AddEditingTask">Add task</button>
+                            @if (!string.IsNullOrWhiteSpace(editingErrorMessage))
+                            {
+                                <p class="field-error" role="alert">@editingErrorMessage</p>
+                            }
+                            <div class="task-form-controls">
+                                <button type="submit" class="primary-action">Save changes</button>
+                                <button type="button" class="secondary-action" @onclick="CancelEditEventType">Cancel</button>
+                            </div>
+                        </form>
+                    }
+                    else if (eventType.Tasks.Count > 0)
                     {
                         <ol class="task-list">
                             @foreach (var task in eventType.Tasks.OrderBy(task => task.SortOrder))
@@ -176,6 +220,10 @@
     private string? eventTypeInputErrorMessage;
     private readonly Dictionary<Guid, string> taskNames = [];
     private readonly Dictionary<Guid, string> taskInputErrorMessages = [];
+    private Guid? editingEventTypeId;
+    private string editingEventTypeName = string.Empty;
+    private List<EditableTask> editingTasks = [];
+    private string? editingErrorMessage;
 
     protected override void OnInitialized()
     {
@@ -243,6 +291,70 @@
         }
     }
 
+    private void BeginEditEventType(EventType eventType)
+    {
+        editingEventTypeId = eventType.Id;
+        editingEventTypeName = eventType.Name;
+        editingTasks = eventType.Tasks
+            .OrderBy(task => task.SortOrder)
+            .Select(task => new EditableTask(task.Id, task.Name))
+            .ToList();
+        editingErrorMessage = null;
+    }
+
+    private void CancelEditEventType()
+    {
+        editingEventTypeId = null;
+        editingErrorMessage = null;
+        editingTasks = [];
+    }
+
+    private void AddEditingTask() =>
+        editingTasks.Add(new EditableTask(null, string.Empty));
+
+    private void RemoveEditingTask(Guid key) =>
+        editingTasks.RemoveAll(task => task.Key == key);
+
+    private bool CanMoveTask(Guid key, int direction)
+    {
+        var index = editingTasks.FindIndex(task => task.Key == key);
+        return index >= 0 && index + direction >= 0 && index + direction < editingTasks.Count;
+    }
+
+    private void MoveTask(Guid key, int direction)
+    {
+        var index = editingTasks.FindIndex(task => task.Key == key);
+        if (!CanMoveTask(key, direction))
+        {
+            return;
+        }
+
+        (editingTasks[index], editingTasks[index + direction]) =
+            (editingTasks[index + direction], editingTasks[index]);
+    }
+
+    private async Task SaveEventTypeAsync()
+    {
+        if (editingEventTypeId is not { } eventTypeId)
+        {
+            return;
+        }
+
+        var result = await ConfigurationStateService.EditEventTypeAsync(
+            eventTypeId,
+            editingEventTypeName,
+            editingTasks.Select(task => new EventTypeTaskUpdate(task.Id, task.Name)));
+        if (result.IsSuccess)
+        {
+            CancelEditEventType();
+            RefreshEventTypes();
+        }
+        else
+        {
+            editingErrorMessage = result.ErrorMessage;
+        }
+    }
+
     private async Task AddParticipantAsync()
     {
         var result = await ConfigurationStateService.AddParticipantAsync(participantName);
@@ -295,6 +407,13 @@
         {
             taskNames.TryAdd(eventType.Id, string.Empty);
         }
+    }
+
+    private sealed class EditableTask(Guid? id, string name)
+    {
+        public Guid? Id { get; } = id;
+        public Guid Key { get; } = id ?? Guid.NewGuid();
+        public string Name { get; set; } = name;
     }
 
 }

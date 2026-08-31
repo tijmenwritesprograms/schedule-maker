@@ -91,6 +91,37 @@ public sealed class HomePageTests
     }
 
     [Fact]
+    public void TeamManagementPage_Can_Cancel_And_Save_Event_Type_Edits()
+    {
+        using var context = CreateTeamContext();
+        var cut = context.Render<TeamManagementPage>();
+
+        var eventTypeForm = cut.FindAll("form.participant-form")[1];
+        eventTypeForm.QuerySelector("#event-type-name")!.Input("Practice");
+        eventTypeForm.Submit();
+        var eventType = context.Services.GetRequiredService<ApplicationStateStore>().Current.EventTypes.Single();
+        AddTeamTask(cut, eventType.Id, "Setup");
+        AddTeamTask(cut, eventType.Id, "Cleanup");
+
+        cut.FindAll(".event-type-card button").Single(button => button.TextContent.Trim() == "Edit").Click();
+        cut.Find($"#edit-event-type-name-{eventType.Id}").Input("Changed");
+        cut.FindAll("button").Single(button => button.TextContent.Trim() == "Cancel").Click();
+        Assert.Contains("Practice", cut.Find(".event-type-card").TextContent);
+        Assert.DoesNotContain("Changed", cut.Find(".event-type-card").TextContent);
+
+        cut.FindAll(".event-type-card button").Single(button => button.TextContent.Trim() == "Edit").Click();
+        cut.Find($"#edit-event-type-name-{eventType.Id}").Input("  Match  ");
+        cut.FindAll("input[aria-label='Task name']")[0].Input("  Warm up ");
+        cut.FindAll("button").First(button => button.TextContent.Trim() == "Move down").Click();
+        cut.FindAll("button").Single(button => button.TextContent.Trim() == "Save changes").Click();
+
+        var updated = context.Services.GetRequiredService<ApplicationStateStore>().Current.EventTypes.Single();
+        Assert.Equal("Match", updated.Name);
+        Assert.Equal(["Cleanup", "Warm up"], updated.Tasks.Select(task => task.Name));
+        Assert.DoesNotContain("Save changes", cut.Markup);
+    }
+
+    [Fact]
     public void HomePage_Shows_Actionable_Validation_For_Duplicate_Participants_And_Missing_Event_Fields()
     {
         using var context = CreateContext();
@@ -128,7 +159,25 @@ public sealed class HomePageTests
             .Submit();
     }
 
+    private static void AddTeamTask(IRenderedComponent<TeamManagementPage> cut, Guid eventTypeId, string name)
+    {
+        var input = cut.Find($"#task-name-{eventTypeId}");
+        input.Input(name);
+        cut.FindAll("form.task-form")
+            .Single(form => form.QuerySelector($"#task-name-{eventTypeId}") is not null)
+            .Submit();
+    }
+
     private static BunitContext CreateContext()
+    {
+        var context = new BunitContext();
+        var stateStore = new ApplicationStateStore(new InMemoryPersistence());
+        context.Services.AddSingleton(stateStore);
+        context.Services.AddSingleton(new ConfigurationStateService(stateStore));
+        return context;
+    }
+
+    private static BunitContext CreateTeamContext()
     {
         var context = new BunitContext();
         var stateStore = new ApplicationStateStore(new InMemoryPersistence());

@@ -2,6 +2,8 @@ using ScheduleMaker.App.Domain;
 
 namespace ScheduleMaker.App.Application;
 
+public sealed record EventTypeTaskUpdate(Guid? Id, string Name);
+
 public sealed class ConfigurationStateService(ApplicationStateStore stateStore)
 {
     public ConfigurationValidationResult ValidateCurrentConfiguration() =>
@@ -122,6 +124,72 @@ public sealed class ConfigurationStateService(ApplicationStateStore stateStore)
         {
             return ApplicationOperationResult.Failure("Event type was not found.");
         }
+
+        await ReplaceStateAsync(
+            participants: stateStore.Current.Participants,
+            eventTypes: eventTypes,
+            scheduledEvents: stateStore.Current.ScheduledEvents,
+            scheduleChanged: true,
+            cancellationToken);
+        return ApplicationOperationResult.Success();
+    }
+
+    public async Task<ApplicationOperationResult> EditEventTypeAsync(
+        Guid eventTypeId,
+        string eventTypeName,
+        IEnumerable<EventTypeTaskUpdate> taskUpdates,
+        CancellationToken cancellationToken = default)
+    {
+        var normalizedEventTypeName = NormalizeRequiredName(eventTypeName);
+        if (normalizedEventTypeName is null)
+        {
+            return ApplicationOperationResult.Failure("Event type name is required.");
+        }
+
+        var eventTypes = stateStore.Current.EventTypes.ToList();
+        var eventTypeIndex = eventTypes.FindIndex(eventType => eventType.Id == eventTypeId);
+        if (eventTypeIndex < 0)
+        {
+            return ApplicationOperationResult.Failure("Event type was not found.");
+        }
+
+        if (eventTypes.Any(eventType =>
+            eventType.Id != eventTypeId && NameEquals(eventType.Name, normalizedEventTypeName)))
+        {
+            return ApplicationOperationResult.Failure("Event type names must be unique.");
+        }
+
+        if (taskUpdates is null)
+        {
+            return ApplicationOperationResult.Failure("Tasks are required.");
+        }
+
+        var existingEventType = eventTypes[eventTypeIndex];
+        var existingTasks = existingEventType.Tasks.ToDictionary(task => task.Id);
+        var updates = taskUpdates.ToList();
+        var normalizedTaskNames = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        var tasks = new List<TaskDefinition>(updates.Count);
+
+        foreach (var update in updates)
+        {
+            var normalizedTaskName = NormalizeRequiredName(update.Name);
+            if (normalizedTaskName is null)
+            {
+                return ApplicationOperationResult.Failure("Task name is required.");
+            }
+
+            if (!normalizedTaskNames.Add(normalizedTaskName))
+            {
+                return ApplicationOperationResult.Failure("Task names must be unique per event type.");
+            }
+
+            var taskId = update.Id is { } requestedId && existingTasks.ContainsKey(requestedId)
+                ? requestedId
+                : Guid.NewGuid();
+            tasks.Add(new TaskDefinition(taskId, normalizedTaskName, tasks.Count));
+        }
+
+        eventTypes[eventTypeIndex] = new EventType(eventTypeId, normalizedEventTypeName, tasks);
 
         await ReplaceStateAsync(
             participants: stateStore.Current.Participants,
