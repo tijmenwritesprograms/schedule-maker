@@ -1,0 +1,300 @@
+@page "/team"
+@using ScheduleMaker.App.Application
+@using ScheduleMaker.App.Domain
+@using System.Globalization
+@inject ApplicationStateStore StateStore
+@inject ConfigurationStateService ConfigurationStateService
+
+<PageTitle>Team setup - Schedule Maker</PageTitle>
+
+<section class="welcome-panel" aria-labelledby="page-title">
+    <p class="eyebrow">Schedule Maker</p>
+    <h1 id="page-title">Set up your team</h1>
+    <p class="intro">Add participants and create event types with their tasks.</p>
+</section>
+
+@if (!string.IsNullOrWhiteSpace(StateStore.PersistenceError))
+{
+    <p class="error-message" role="alert">@StateStore.PersistenceError</p>
+}
+
+<section class="setup-panel" aria-labelledby="participants-title">
+    <div class="section-header">
+        <h2 id="participants-title">Participants</h2>
+        <p class="section-description">Add each person who should share recurring tasks.</p>
+    </div>
+
+    <form class="participant-form" @onsubmit="AddParticipantAsync" @onsubmit:preventDefault="true">
+        <div class="participant-field">
+            <label for="participant-name">Participant name</label>
+            <input id="participant-name"
+                   type="text"
+                   class="participant-input"
+                   @bind="participantName"
+                   @bind:event="oninput"
+                   aria-describedby="@GetParticipantFieldDescription()" />
+            <p id="participant-help" class="field-help">Enter one name at a time, then select Add participant.</p>
+            @if (!string.IsNullOrWhiteSpace(participantInputErrorMessage))
+            {
+                <p id="participant-feedback" class="field-error" role="alert">@participantInputErrorMessage</p>
+            }
+        </div>
+
+        <button type="submit" class="primary-action">Add participant</button>
+    </form>
+
+    @if (!string.IsNullOrWhiteSpace(participantListErrorMessage))
+    {
+        <p class="field-error" role="alert">@participantListErrorMessage</p>
+    }
+
+    @if (participants.Count == 0)
+    {
+        <p class="empty-state">Add your first participant above to start building the schedule.</p>
+    }
+    else
+    {
+        <ul class="participant-list" role="list" aria-label="Participants">
+            @foreach (var participant in participants)
+            {
+                <li class="participant-list-item" @key="participant.Id">
+                    <span>@participant.Name</span>
+                    <button type="button"
+                            class="secondary-action"
+                            aria-label="@($"Remove {participant.Name}")"
+                            @onclick="() => RemoveParticipantAsync(participant.Id)">
+                        Remove
+                    </button>
+                </li>
+            }
+        </ul>
+    }
+</section>
+
+
+<section class="setup-panel" aria-labelledby="event-types-title">
+    <div class="section-header">
+        <h2 id="event-types-title">Event types</h2>
+        <p class="section-description">Create reusable event types, then add their tasks in the order they should be done.</p>
+    </div>
+
+    <form class="participant-form" @onsubmit="AddEventTypeAsync" @onsubmit:preventDefault="true">
+        <div class="participant-field">
+            <label for="event-type-name">Event type name</label>
+            <input id="event-type-name"
+                   type="text"
+                   class="participant-input"
+                   @bind="eventTypeName"
+                   @bind:event="oninput"
+                   aria-describedby="event-type-help" />
+            <p id="event-type-help" class="field-help">Add the event type first, then add one or more tasks.</p>
+            @if (!string.IsNullOrWhiteSpace(eventTypeInputErrorMessage))
+            {
+                <p class="field-error" role="alert">@eventTypeInputErrorMessage</p>
+            }
+        </div>
+        <button type="submit" class="primary-action">Add event type</button>
+    </form>
+
+    @if (eventTypes.Count == 0)
+    {
+        <p class="empty-state">No event types yet. Add your first event type above, then add its first task.</p>
+    }
+    else
+    {
+        <div class="event-type-list">
+            @foreach (var eventType in eventTypes)
+            {
+                <article class="event-type-card" @key="eventType.Id">
+                    <div class="event-type-header">
+                        <div>
+                            <h3>@eventType.Name</h3>
+                            @if (eventType.Tasks.Count == 0)
+                            {
+                                <p class="field-error" role="status">Add a task before using this event type for scheduling.</p>
+                            }
+                        </div>
+                        <button type="button"
+                                class="secondary-action"
+                                aria-label="@($"Remove event type {eventType.Name}")"
+                                @onclick="() => RemoveEventTypeAsync(eventType.Id)">
+                            Remove event type
+                        </button>
+                    </div>
+
+                    @if (eventType.Tasks.Count > 0)
+                    {
+                        <ol class="task-list">
+                            @foreach (var task in eventType.Tasks.OrderBy(task => task.SortOrder))
+                            {
+                                <li @key="task.Id">
+                                    <span>@task.Name</span>
+                                    <button type="button"
+                                            class="secondary-action"
+                                            aria-label="@($"Remove task {task.Name} from {eventType.Name}")"
+                                            @onclick="() => RemoveTaskAsync(eventType.Id, task.Id)">
+                                        Remove
+                                    </button>
+                                </li>
+                            }
+                        </ol>
+                    }
+
+                    <form class="task-form" @onsubmit="() => AddTaskAsync(eventType.Id)" @onsubmit:preventDefault="true">
+                        <label for="@($"task-name-{eventType.Id}")">Add task to @eventType.Name</label>
+                        <div class="task-form-controls">
+                            <input id="@($"task-name-{eventType.Id}")"
+                                   type="text"
+                                   class="participant-input"
+                                   @bind="taskNames[eventType.Id]"
+                                   @bind:event="oninput" />
+                            <button type="submit" class="primary-action">Add task</button>
+                        </div>
+                        @if (taskInputErrorMessages.TryGetValue(eventType.Id, out var taskError))
+                        {
+                            <p class="field-error" role="alert">@taskError</p>
+                        }
+                    </form>
+                </article>
+            }
+        </div>
+    }
+</section>
+
+
+<section class="navigation-footer" aria-label="Next step">
+    <p>Ready to schedule? <a href="/schedule">Go to schedule</a>.</p>
+</section>
+
+@code {
+    private string participantName = string.Empty;
+    private string? participantInputErrorMessage;
+    private string? participantListErrorMessage;
+    private IReadOnlyList<Participant> participants = [];
+    private IReadOnlyList<EventType> eventTypes = [];
+    private string eventTypeName = string.Empty;
+    private string? eventTypeInputErrorMessage;
+    private readonly Dictionary<Guid, string> taskNames = [];
+    private readonly Dictionary<Guid, string> taskInputErrorMessages = [];
+
+    protected override void OnInitialized()
+    {
+        RefreshParticipants();
+        RefreshEventTypes();
+    }
+
+    private async Task AddEventTypeAsync()
+    {
+        var result = await ConfigurationStateService.AddEventTypeAsync(eventTypeName);
+        if (result.IsSuccess)
+        {
+            eventTypeName = string.Empty;
+            eventTypeInputErrorMessage = null;
+            RefreshEventTypes();
+        }
+        else
+        {
+            eventTypeInputErrorMessage = result.ErrorMessage;
+        }
+    }
+
+    private async Task AddTaskAsync(Guid eventTypeId)
+    {
+        var taskName = taskNames.GetValueOrDefault(eventTypeId, string.Empty);
+        var result = await ConfigurationStateService.AddTaskAsync(eventTypeId, taskName);
+        if (result.IsSuccess)
+        {
+            taskNames[eventTypeId] = string.Empty;
+            taskInputErrorMessages.Remove(eventTypeId);
+            RefreshEventTypes();
+        }
+        else
+        {
+            taskInputErrorMessages[eventTypeId] = result.ErrorMessage ?? "Task could not be added.";
+        }
+    }
+
+    private async Task RemoveTaskAsync(Guid eventTypeId, Guid taskId)
+    {
+        var result = await ConfigurationStateService.RemoveTaskAsync(eventTypeId, taskId);
+        if (result.IsSuccess)
+        {
+            taskInputErrorMessages.Remove(eventTypeId);
+            RefreshEventTypes();
+        }
+        else
+        {
+            taskInputErrorMessages[eventTypeId] = result.ErrorMessage ?? "Task could not be removed.";
+        }
+    }
+
+    private async Task RemoveEventTypeAsync(Guid eventTypeId)
+    {
+        var result = await ConfigurationStateService.RemoveEventTypeAsync(eventTypeId);
+        if (result.IsSuccess)
+        {
+            taskNames.Remove(eventTypeId);
+            taskInputErrorMessages.Remove(eventTypeId);
+            RefreshEventTypes();
+        }
+        else
+        {
+            eventTypeInputErrorMessage = result.ErrorMessage;
+        }
+    }
+
+    private async Task AddParticipantAsync()
+    {
+        var result = await ConfigurationStateService.AddParticipantAsync(participantName);
+        if (result.IsSuccess)
+        {
+            participantName = string.Empty;
+            participantInputErrorMessage = null;
+            participantListErrorMessage = null;
+            RefreshParticipants();
+            return;
+        }
+
+        participantInputErrorMessage = result.ErrorMessage;
+        participantListErrorMessage = null;
+    }
+
+    private async Task RemoveParticipantAsync(Guid participantId)
+    {
+        participantInputErrorMessage = null;
+        var result = await ConfigurationStateService.RemoveParticipantAsync(participantId);
+        if (result.IsSuccess)
+        {
+            participantListErrorMessage = null;
+            RefreshParticipants();
+        }
+        else
+        {
+            participantListErrorMessage = result.ErrorMessage;
+        }
+    }
+
+    private string GetParticipantFieldDescription() =>
+        string.IsNullOrWhiteSpace(participantInputErrorMessage)
+            ? "participant-help"
+            : "participant-help participant-feedback";
+
+    private void RefreshParticipants()
+    {
+        participants = StateStore.Current.Participants
+            .OrderBy(participant => participant.SortOrder)
+            .ToList();
+    }
+
+    private void RefreshEventTypes()
+    {
+        eventTypes = StateStore.Current.EventTypes
+            .OrderBy(eventType => eventType.Name, StringComparer.OrdinalIgnoreCase)
+            .ToList();
+        foreach (var eventType in eventTypes)
+        {
+            taskNames.TryAdd(eventType.Id, string.Empty);
+        }
+    }
+
+}
