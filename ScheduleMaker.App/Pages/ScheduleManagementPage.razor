@@ -71,6 +71,27 @@
                     <p id="scheduled-event-type-error" class="field-error" role="alert">@scheduledEventTypeErrorMessage</p>
                 }
             </div>
+            <div class="event-form-field">
+                <label for="recurrence-interval">Repeat</label>
+                <select id="recurrence-interval" class="participant-input" @bind="recurrenceInterval">
+                    <option value="">Does not repeat</option>
+                    <option value="1">Weekly</option>
+                    <option value="2">Every 2 weeks</option>
+                </select>
+            </div>
+            @if (!string.IsNullOrEmpty(recurrenceInterval))
+            {
+                <div class="event-form-field">
+                    <label for="recurrence-end-date">Repeat until</label>
+                    <input id="recurrence-end-date"
+                           type="date"
+                           class="participant-input"
+                           @bind="recurrenceEndDate"
+                           aria-describedby="recurrence-end-date-help recurrence-error"
+                           aria-invalid="@(!string.IsNullOrWhiteSpace(recurrenceErrorMessage))" />
+                    <p id="recurrence-end-date-help" class="field-help">The end date is included.</p>
+                </div>
+            }
             <div class="event-form-field event-description-field">
                 <label for="scheduled-event-description">Description <span>(optional)</span></label>
                 <textarea id="scheduled-event-description"
@@ -81,6 +102,10 @@
                           aria-describedby="scheduled-event-description-help"></textarea>
                 <p id="scheduled-event-description-help" class="field-help">Up to 500 characters.</p>
             </div>
+            @if (!string.IsNullOrWhiteSpace(recurrenceErrorMessage))
+            {
+                <p id="recurrence-error" class="field-error" role="alert">@recurrenceErrorMessage</p>
+            }
             <button type="submit" class="primary-action">Add event</button>
         </form>
     }
@@ -247,9 +272,12 @@
     private DateTime? scheduledEventDate;
     private string selectedEventTypeId = string.Empty;
     private string scheduledEventDescription = string.Empty;
+    private string recurrenceInterval = string.Empty;
+    private DateTime? recurrenceEndDate;
     private string? scheduledEventDateErrorMessage;
     private string? scheduledEventTypeErrorMessage;
     private string? scheduledEventErrorMessage;
+    private string? recurrenceErrorMessage;
     private string? removeScheduledEventErrorMessage;
     private string? scheduleGenerationErrorMessage;
     private bool isGeneratingSchedule;
@@ -266,6 +294,7 @@
         scheduledEventDateErrorMessage = null;
         scheduledEventTypeErrorMessage = null;
         scheduledEventErrorMessage = null;
+        recurrenceErrorMessage = null;
 
         if (scheduledEventDate is null)
         {
@@ -281,18 +310,46 @@
             return;
         }
 
-        var result = await ConfigurationStateService.AddScheduledEventAsync(date, eventTypeId, scheduledEventDescription);
+        ApplicationOperationResult result;
+        if (string.IsNullOrEmpty(recurrenceInterval))
+        {
+            result = await ConfigurationStateService.AddScheduledEventAsync(date, eventTypeId, scheduledEventDescription);
+        }
+        else if (!int.TryParse(recurrenceInterval, out var intervalWeeks))
+        {
+            recurrenceErrorMessage = "Choose a weekly or biweekly recurrence interval.";
+            return;
+        }
+        else
+        {
+            result = await ConfigurationStateService.AddRecurringScheduledEventsAsync(
+                date,
+                recurrenceEndDate is null ? null : DateOnly.FromDateTime(recurrenceEndDate.Value),
+                eventTypeId,
+                intervalWeeks,
+                scheduledEventDescription);
+        }
+
         if (result.IsSuccess)
         {
             scheduledEventDate = null;
             selectedEventTypeId = string.Empty;
             scheduledEventDescription = string.Empty;
+            recurrenceInterval = string.Empty;
+            recurrenceEndDate = null;
             scheduleGenerationErrorMessage = null;
             RefreshScheduledEvents();
             return;
         }
 
-        scheduledEventErrorMessage = result.ErrorMessage;
+        if (!string.IsNullOrEmpty(recurrenceInterval))
+        {
+            recurrenceErrorMessage = result.ErrorMessage;
+        }
+        else
+        {
+            scheduledEventErrorMessage = result.ErrorMessage;
+        }
     }
 
     private async Task RemoveScheduledEventAsync(Guid scheduledEventId)

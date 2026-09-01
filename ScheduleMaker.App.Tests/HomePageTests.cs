@@ -144,6 +144,33 @@ public sealed class HomePageTests
         Assert.Contains("Select an event type.", cut.Markup);
     }
 
+    [Fact]
+    public void HomePage_Adds_Weekly_Events_Through_Inclusive_End_Date()
+    {
+        using var context = CreateContext();
+        var cut = context.Render<Home>();
+
+        AddParticipant(cut, "Alex");
+        var eventTypeForm = cut.FindAll("form.participant-form")[1];
+        eventTypeForm.QuerySelector("#event-type-name")!.Input("Practice");
+        eventTypeForm.Submit();
+        var eventType = context.Services.GetRequiredService<ApplicationStateStore>().Current.EventTypes.Single();
+
+        AddTask(cut, eventType.Id, "Setup");
+        cut.Find("#scheduled-event-date").Change("2026-09-01");
+        cut.Find("#scheduled-event-type").Change(eventType.Id.ToString());
+        cut.Find("#recurrence-interval").Change("1");
+        cut.Find("#recurrence-end-date").Change("2026-09-15");
+        cut.Find("#scheduled-event-description").Change("Weekly practice");
+        cut.Find("form.event-form").Submit();
+
+        var events = context.Services.GetRequiredService<ApplicationStateStore>().Current.ScheduledEvents;
+        Assert.Equal(
+            [new DateOnly(2026, 9, 1), new DateOnly(2026, 9, 8), new DateOnly(2026, 9, 15)],
+            events.Select(@event => @event.Date));
+        Assert.All(events, @event => Assert.Equal("Weekly practice", @event.Description));
+    }
+
     private static void AddParticipant(IRenderedComponent<Home> cut, string name)
     {
         cut.Find("#participant-name").Input(name);

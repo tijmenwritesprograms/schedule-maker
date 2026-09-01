@@ -114,6 +114,76 @@ public sealed class ConfigurationStateServiceTests
     }
 
     [Fact]
+    public async Task AddRecurringScheduledEvents_Creates_Inclusive_Weekly_Occurrences_And_Persists()
+    {
+        var eventType = new EventType(Guid.NewGuid(), "Practice", [new TaskDefinition(Guid.NewGuid(), "Setup", 0)]);
+        var persistence = new FakePersistence(new ApplicationState([], [eventType], [], null, false));
+        var stateStore = new ApplicationStateStore(persistence);
+        await stateStore.InitializeAsync();
+        var service = new ConfigurationStateService(stateStore);
+
+        var result = await service.AddRecurringScheduledEventsAsync(
+            new DateOnly(2026, 9, 1),
+            new DateOnly(2026, 9, 22),
+            eventType.Id,
+            RecurrenceInterval.Weekly,
+            "Practice");
+
+        Assert.True(result.IsSuccess);
+        Assert.Equal(
+            [new DateOnly(2026, 9, 1), new DateOnly(2026, 9, 8), new DateOnly(2026, 9, 15), new DateOnly(2026, 9, 22)],
+            stateStore.Current.ScheduledEvents.Select(@event => @event.Date));
+        Assert.All(stateStore.Current.ScheduledEvents, @event => Assert.Equal("Practice", @event.Description));
+        Assert.Equal(1, persistence.SaveCount);
+    }
+
+    [Fact]
+    public async Task AddRecurringScheduledEvents_Supports_Biweekly_And_Skips_Duplicates()
+    {
+        var eventType = new EventType(Guid.NewGuid(), "Practice", [new TaskDefinition(Guid.NewGuid(), "Setup", 0)]);
+        var existing = new ScheduledEvent(Guid.NewGuid(), new DateOnly(2026, 9, 15), eventType.Id, "Existing");
+        var persistence = new FakePersistence(new ApplicationState([], [eventType], [existing], null, false));
+        var stateStore = new ApplicationStateStore(persistence);
+        await stateStore.InitializeAsync();
+        var service = new ConfigurationStateService(stateStore);
+
+        var result = await service.AddRecurringScheduledEventsAsync(
+            new DateOnly(2026, 9, 1),
+            new DateOnly(2026, 9, 29),
+            eventType.Id,
+            RecurrenceInterval.Biweekly,
+            "Series");
+
+        Assert.True(result.IsSuccess);
+        Assert.Equal(
+            [new DateOnly(2026, 9, 1), new DateOnly(2026, 9, 15), new DateOnly(2026, 9, 29)],
+            stateStore.Current.ScheduledEvents.Select(@event => @event.Date));
+        Assert.Equal("Existing", stateStore.Current.ScheduledEvents[1].Description);
+    }
+
+    [Fact]
+    public async Task AddRecurringScheduledEvents_Rejects_Invalid_Input()
+    {
+        var eventType = new EventType(Guid.NewGuid(), "Practice", [new TaskDefinition(Guid.NewGuid(), "Setup", 0)]);
+        var persistence = new FakePersistence(new ApplicationState([], [eventType], [], null, false));
+        var stateStore = new ApplicationStateStore(persistence);
+        await stateStore.InitializeAsync();
+        var service = new ConfigurationStateService(stateStore);
+
+        var missingEnd = await service.AddRecurringScheduledEventsAsync(
+            new DateOnly(2026, 9, 1), null, eventType.Id, 1, null);
+        var backwards = await service.AddRecurringScheduledEventsAsync(
+            new DateOnly(2026, 9, 2), new DateOnly(2026, 9, 1), eventType.Id, 1, null);
+        var missingType = await service.AddRecurringScheduledEventsAsync(
+            new DateOnly(2026, 9, 1), new DateOnly(2026, 9, 8), Guid.NewGuid(), 1, null);
+
+        Assert.Equal("Choose a start and end date.", missingEnd.ErrorMessage);
+        Assert.Equal("End date cannot be earlier than the start date.", backwards.ErrorMessage);
+        Assert.Equal("Event type was not found.", missingType.ErrorMessage);
+        Assert.Equal(0, persistence.SaveCount);
+    }
+
+    [Fact]
     public async Task AddEventType_Rejects_Blank_Event_Type_And_Task_Names()
     {
         var persistence = new FakePersistence(ApplicationState.Empty);
