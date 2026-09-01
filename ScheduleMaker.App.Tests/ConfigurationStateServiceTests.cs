@@ -399,6 +399,165 @@ public sealed class ConfigurationStateServiceTests
         Assert.Equal(1, persistence.SaveCount);
     }
 
+    [Fact]
+    public async Task EditGeneratedTaskAssignment_Updates_Assignment_Totals_And_Repeated_Edits()
+    {
+        var alex = new Participant(Guid.NewGuid(), "Alex", 0);
+        var jamie = new Participant(Guid.NewGuid(), "Jamie", 1);
+        var task = new TaskDefinition(Guid.NewGuid(), "Setup", 0);
+        var eventType = new EventType(Guid.NewGuid(), "Practice", [task]);
+        var scheduledEvent = new ScheduledEvent(Guid.NewGuid(), new DateOnly(2026, 9, 10), eventType.Id, null);
+        var schedule = new GeneratedSchedule(
+            Guid.NewGuid(),
+            DateTimeOffset.UtcNow,
+            [
+                new GeneratedScheduleEvent(
+                    scheduledEvent.Id,
+                    scheduledEvent.Date,
+                    eventType.Id,
+                    eventType.Name,
+                    null,
+                    [new GeneratedTaskAssignment(task.Id, task.Name, alex.Id, alex.Name)])
+            ],
+            [
+                new ParticipantAssignmentTotal(alex.Id, alex.Name, 1),
+                new ParticipantAssignmentTotal(jamie.Id, jamie.Name, 0)
+            ]);
+
+        var persistence = new FakePersistence(new ApplicationState(
+            [alex, jamie],
+            [eventType],
+            [scheduledEvent],
+            schedule,
+            false));
+        var stateStore = new ApplicationStateStore(persistence);
+        await stateStore.InitializeAsync();
+        var service = new ConfigurationStateService(stateStore);
+
+        var firstResult = await service.EditGeneratedTaskAssignmentAsync(scheduledEvent.Id, task.Id, jamie.Id);
+
+        Assert.True(firstResult.IsSuccess);
+        var editedAssignment = stateStore.Current.LatestSchedule!.Events.Single().Assignments.Single();
+        Assert.Equal(jamie.Id, editedAssignment.ParticipantId);
+        Assert.Equal(alex.Id, editedAssignment.OriginalParticipantId);
+        Assert.True(editedAssignment.IsManuallyEdited);
+        Assert.Equal([0, 1], stateStore.Current.LatestSchedule.ParticipantTotals.Select(total => total.AssignmentCount));
+
+        var secondResult = await service.EditGeneratedTaskAssignmentAsync(scheduledEvent.Id, task.Id, alex.Id);
+
+        Assert.True(secondResult.IsSuccess);
+        var revertedAssignment = stateStore.Current.LatestSchedule.Events.Single().Assignments.Single();
+        Assert.Equal(alex.Id, revertedAssignment.ParticipantId);
+        Assert.False(revertedAssignment.IsManuallyEdited);
+        Assert.False(stateStore.Current.LatestSchedule.HasManualChanges);
+        Assert.Equal([1, 0], stateStore.Current.LatestSchedule.ParticipantTotals.Select(total => total.AssignmentCount));
+        Assert.Equal(2, persistence.SaveCount);
+    }
+
+    [Fact]
+    public async Task EditGeneratedTaskAssignment_Rejects_Invalid_Participants_And_Stale_Schedules()
+    {
+        var alex = new Participant(Guid.NewGuid(), "Alex", 0);
+        var jamie = new Participant(Guid.NewGuid(), "Jamie", 1);
+        var task = new TaskDefinition(Guid.NewGuid(), "Setup", 0);
+        var eventType = new EventType(Guid.NewGuid(), "Practice", [task]);
+        var scheduledEvent = new ScheduledEvent(Guid.NewGuid(), new DateOnly(2026, 9, 10), eventType.Id, null);
+        var schedule = new GeneratedSchedule(
+            Guid.NewGuid(),
+            DateTimeOffset.UtcNow,
+            [
+                new GeneratedScheduleEvent(
+                    scheduledEvent.Id,
+                    scheduledEvent.Date,
+                    eventType.Id,
+                    eventType.Name,
+                    null,
+                    [new GeneratedTaskAssignment(task.Id, task.Name, alex.Id, alex.Name)])
+            ],
+            [
+                new ParticipantAssignmentTotal(alex.Id, alex.Name, 1),
+                new ParticipantAssignmentTotal(jamie.Id, jamie.Name, 0)
+            ]);
+
+        var persistence = new FakePersistence(new ApplicationState(
+            [alex, jamie],
+            [eventType],
+            [scheduledEvent],
+            schedule,
+            false));
+        var stateStore = new ApplicationStateStore(persistence);
+        await stateStore.InitializeAsync();
+        var service = new ConfigurationStateService(stateStore);
+
+        var invalidParticipantResult = await service.EditGeneratedTaskAssignmentAsync(
+            scheduledEvent.Id,
+            task.Id,
+            Guid.NewGuid());
+
+        Assert.False(invalidParticipantResult.IsSuccess);
+        Assert.Equal("Select an existing participant.", invalidParticipantResult.ErrorMessage);
+        Assert.Equal(0, persistence.SaveCount);
+
+        stateStore.Replace(new ApplicationState(
+            stateStore.Current.Participants,
+            stateStore.Current.EventTypes,
+            stateStore.Current.ScheduledEvents,
+            stateStore.Current.LatestSchedule,
+            isScheduleStale: true,
+            stateStore.Current.SchemaVersion));
+
+        var staleResult = await service.EditGeneratedTaskAssignmentAsync(scheduledEvent.Id, task.Id, jamie.Id);
+
+        Assert.False(staleResult.IsSuccess);
+        Assert.Equal("Regenerate the schedule before editing assignments.", staleResult.ErrorMessage);
+        Assert.Equal(0, persistence.SaveCount);
+    }
+
+    [Fact]
+    public async Task GenerateSchedule_Replaces_Manual_Assignment_Changes()
+    {
+        var alex = new Participant(Guid.NewGuid(), "Alex", 0);
+        var jamie = new Participant(Guid.NewGuid(), "Jamie", 1);
+        var task = new TaskDefinition(Guid.NewGuid(), "Setup", 0);
+        var eventType = new EventType(Guid.NewGuid(), "Practice", [task]);
+        var scheduledEvent = new ScheduledEvent(Guid.NewGuid(), new DateOnly(2026, 9, 10), eventType.Id, null);
+        var manuallyEditedSchedule = new GeneratedSchedule(
+            Guid.NewGuid(),
+            DateTimeOffset.UtcNow.AddHours(-1),
+            [
+                new GeneratedScheduleEvent(
+                    scheduledEvent.Id,
+                    scheduledEvent.Date,
+                    eventType.Id,
+                    eventType.Name,
+                    null,
+                    [new GeneratedTaskAssignment(task.Id, task.Name, alex.Id, alex.Name, jamie.Id, jamie.Name)])
+            ],
+            [
+                new ParticipantAssignmentTotal(alex.Id, alex.Name, 0),
+                new ParticipantAssignmentTotal(jamie.Id, jamie.Name, 1)
+            ]);
+
+        var persistence = new FakePersistence(new ApplicationState(
+            [alex, jamie],
+            [eventType],
+            [scheduledEvent],
+            manuallyEditedSchedule,
+            false));
+        var stateStore = new ApplicationStateStore(persistence);
+        await stateStore.InitializeAsync();
+        var service = new ConfigurationStateService(stateStore);
+
+        var result = await service.GenerateScheduleAsync();
+
+        Assert.True(result.IsSuccess);
+        var generatedAssignment = stateStore.Current.LatestSchedule!.Events.Single().Assignments.Single();
+        Assert.Equal(alex.Id, generatedAssignment.ParticipantId);
+        Assert.False(generatedAssignment.IsManuallyEdited);
+        Assert.False(stateStore.Current.LatestSchedule.HasManualChanges);
+        Assert.False(stateStore.Current.IsScheduleStale);
+    }
+
     private sealed class FakePersistence(ApplicationState initialState) : IApplicationStatePersistence
     {
         public int SaveCount { get; private set; }

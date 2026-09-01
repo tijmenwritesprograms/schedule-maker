@@ -41,6 +41,7 @@ public sealed class DomainModelTests
     public void GeneratedSchedule_Snapshots_Are_Value_Based()
     {
         var participant = new Participant(Guid.NewGuid(), "Alex", 0);
+        var replacement = new Participant(Guid.NewGuid(), "Taylor", 1);
         var task = new TaskDefinition(Guid.NewGuid(), "Drinks", 0);
         var sourceEventDescription = "Evening game";
 
@@ -48,7 +49,9 @@ public sealed class DomainModelTests
             task.Id,
             task.Name,
             participant.Id,
-            participant.Name);
+            participant.Name,
+            replacement.Id,
+            replacement.Name);
 
         var generatedEvent = new GeneratedScheduleEvent(
             Guid.NewGuid(),
@@ -59,13 +62,48 @@ public sealed class DomainModelTests
             [assignment]);
 
         sourceEventDescription = "Changed description";
-        participant = new Participant(participant.Id, "Taylor", participant.SortOrder);
+        participant = new Participant(participant.Id, "Jordan", participant.SortOrder);
+        replacement = new Participant(replacement.Id, "Casey", replacement.SortOrder);
         task = new TaskDefinition(task.Id, "Equipment", task.SortOrder);
 
         Assert.Equal("Game Night", generatedEvent.EventTypeNameSnapshot);
         Assert.Equal("Evening game", generatedEvent.EventDescriptionSnapshot);
         Assert.Equal("Drinks", generatedEvent.Assignments[0].TaskNameSnapshot);
-        Assert.Equal("Alex", generatedEvent.Assignments[0].ParticipantNameSnapshot);
+        Assert.Equal("Alex", generatedEvent.Assignments[0].OriginalParticipantNameSnapshot);
+        Assert.Equal("Taylor", generatedEvent.Assignments[0].ParticipantNameSnapshot);
+        Assert.True(generatedEvent.Assignments[0].IsManuallyEdited);
+    }
+
+    [Fact]
+    public void GeneratedSchedule_Has_Manual_Changes_When_Any_Assignment_Was_Replaced()
+    {
+        var participant = new Participant(Guid.NewGuid(), "Alex", 0);
+        var replacement = new Participant(Guid.NewGuid(), "Taylor", 1);
+        var task = new TaskDefinition(Guid.NewGuid(), "Drinks", 0);
+        var generatedSchedule = new GeneratedSchedule(
+            Guid.NewGuid(),
+            DateTimeOffset.UtcNow,
+            [
+                new GeneratedScheduleEvent(
+                    Guid.NewGuid(),
+                    new DateOnly(2026, 9, 1),
+                    Guid.NewGuid(),
+                    "Game Night",
+                    null,
+                    [new GeneratedTaskAssignment(
+                        task.Id,
+                        task.Name,
+                        participant.Id,
+                        participant.Name,
+                        replacement.Id,
+                        replacement.Name)])
+            ],
+            [
+                new ParticipantAssignmentTotal(participant.Id, participant.Name, 0),
+                new ParticipantAssignmentTotal(replacement.Id, replacement.Name, 1)
+            ]);
+
+        Assert.True(generatedSchedule.HasManualChanges);
     }
 
     [Fact]

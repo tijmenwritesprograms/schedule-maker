@@ -527,6 +527,32 @@ textarea {
 
     .generated-task-list li,
     .assignment-total-list li {
+        display: block;
+    }
+
+    .generated-task-details,
+    .generated-task-actions,
+    .generated-task-title-row,
+    .assignment-edit-actions {
+        align-items: center;
+        display: flex;
+        gap: 0.75rem;
+    }
+
+    .generated-task-details,
+    .assignment-edit-panel {
+        gap: 0.75rem;
+    }
+
+    .generated-task-details,
+    .assignment-edit-panel {
+        display: flex;
+        flex-direction: column;
+    }
+
+    .generated-task-actions,
+    .generated-task-title-row,
+    .assignment-total-list li {
         align-items: center;
         display: flex;
         gap: 1rem;
@@ -539,6 +565,33 @@ textarea {
 
     .generated-task-participant {
         color: #374151;
+    }
+
+    .generated-task-title-row {
+        justify-content: flex-start;
+    }
+
+    .assignment-edit-panel {
+        align-items: flex-start;
+    }
+
+    .assignment-edit-panel label {
+        font-size: 0.95rem;
+        font-weight: 600;
+    }
+
+    .assignment-edit-panel select {
+        max-width: 20rem;
+    }
+
+    .manual-change-badge {
+        background: #fef3c7;
+        border-radius: 999px;
+        color: #92400e;
+        display: inline-flex;
+        font-size: 0.8rem;
+        font-weight: 700;
+        padding: 0.2rem 0.65rem;
     }
 
     @media (prefers-color-scheme: dark) {
@@ -574,6 +627,11 @@ textarea {
         .schedule-generated-at,
         .generated-task-participant {
             color: #d1d5db;
+        }
+
+        .manual-change-badge {
+            background: #78350f;
+            color: #fde68a;
         }
 
         .secondary-action {
@@ -660,8 +718,10 @@ textarea {
     .task-list li,
     .task-form-controls,
     .scheduled-event-card,
-    .generated-task-list li,
-    .assignment-total-list li {
+    .assignment-total-list li,
+    .generated-task-actions,
+    .generated-task-title-row,
+    .assignment-edit-actions {
         align-items: stretch;
         flex-direction: column;
     }

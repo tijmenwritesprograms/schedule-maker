@@ -445,6 +445,104 @@ public sealed class ConfigurationStateService(ApplicationStateStore stateStore)
         return generationResult;
     }
 
+    public async Task<ApplicationOperationResult> EditGeneratedTaskAssignmentAsync(
+        Guid scheduledEventId,
+        Guid taskDefinitionId,
+        Guid participantId,
+        CancellationToken cancellationToken = default)
+    {
+        var latestSchedule = stateStore.Current.LatestSchedule;
+        if (latestSchedule is null)
+        {
+            return ApplicationOperationResult.Failure("Generate a schedule before editing assignments.");
+        }
+
+        if (stateStore.Current.IsScheduleStale)
+        {
+            return ApplicationOperationResult.Failure("Regenerate the schedule before editing assignments.");
+        }
+
+        var participant = stateStore.Current.Participants.FirstOrDefault(candidate => candidate.Id == participantId);
+        if (participant is null)
+        {
+            return ApplicationOperationResult.Failure("Select an existing participant.");
+        }
+
+        var updatedEvents = new List<GeneratedScheduleEvent>(latestSchedule.Events.Count);
+        var assignmentFound = false;
+        var scheduleChanged = false;
+
+        foreach (var generatedEvent in latestSchedule.Events)
+        {
+            if (generatedEvent.ScheduledEventId != scheduledEventId)
+            {
+                updatedEvents.Add(generatedEvent);
+                continue;
+            }
+
+            var updatedAssignments = new List<GeneratedTaskAssignment>(generatedEvent.Assignments.Count);
+            foreach (var assignment in generatedEvent.Assignments)
+            {
+                if (assignment.TaskDefinitionId != taskDefinitionId)
+                {
+                    updatedAssignments.Add(assignment);
+                    continue;
+                }
+
+                assignmentFound = true;
+                if (assignment.ParticipantId == participant.Id)
+                {
+                    updatedAssignments.Add(assignment);
+                    continue;
+                }
+
+                updatedAssignments.Add(new GeneratedTaskAssignment(
+                    assignment.TaskDefinitionId,
+                    assignment.TaskNameSnapshot,
+                    assignment.OriginalParticipantId,
+                    assignment.OriginalParticipantNameSnapshot,
+                    participant.Id,
+                    participant.Name));
+                scheduleChanged = true;
+            }
+
+            updatedEvents.Add(new GeneratedScheduleEvent(
+                generatedEvent.ScheduledEventId,
+                generatedEvent.Date,
+                generatedEvent.EventTypeId,
+                generatedEvent.EventTypeNameSnapshot,
+                generatedEvent.EventDescriptionSnapshot,
+                updatedAssignments));
+        }
+
+        if (!assignmentFound)
+        {
+            return ApplicationOperationResult.Failure("Assignment was not found.");
+        }
+
+        if (!scheduleChanged)
+        {
+            return ApplicationOperationResult.Success();
+        }
+
+        var updatedSchedule = new GeneratedSchedule(
+            latestSchedule.Id,
+            latestSchedule.GeneratedAtUtc,
+            updatedEvents,
+            RecalculateParticipantTotals(stateStore.Current.Participants, updatedEvents));
+
+        stateStore.Replace(new ApplicationState(
+            stateStore.Current.Participants,
+            stateStore.Current.EventTypes,
+            stateStore.Current.ScheduledEvents,
+            updatedSchedule,
+            isScheduleStale: false,
+            stateStore.Current.SchemaVersion));
+
+        await stateStore.PersistAsync(cancellationToken);
+        return ApplicationOperationResult.Success();
+    }
+
     private async Task ReplaceStateAsync(
         IEnumerable<Participant> participants,
         IEnumerable<EventType> eventTypes,
@@ -499,5 +597,23 @@ public sealed class ConfigurationStateService(ApplicationStateStore stateStore)
         }
 
         return value.Trim();
+    }
+
+    private static IReadOnlyList<ParticipantAssignmentTotal> RecalculateParticipantTotals(
+        IEnumerable<Participant> participants,
+        IEnumerable<GeneratedScheduleEvent> events)
+    {
+        var countsByParticipantId = events
+            .SelectMany(@event => @event.Assignments)
+            .GroupBy(assignment => assignment.ParticipantId)
+            .ToDictionary(group => group.Key, group => group.Count());
+
+        return participants
+            .OrderBy(participant => participant.SortOrder)
+            .Select(participant => new ParticipantAssignmentTotal(
+                participant.Id,
+                participant.Name,
+                countsByParticipantId.GetValueOrDefault(participant.Id)))
+            .ToList();
     }
 }

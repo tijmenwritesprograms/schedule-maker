@@ -86,6 +86,10 @@ public sealed class LocalStorageApplicationStatePersistence(ILocalStorage storag
                     return new GeneratedTaskAssignment(
                         taskId,
                         RequiredText(a.TaskNameSnapshot),
+                        a.OriginalParticipantId == Guid.Empty ? participantId : RequiredId(a.OriginalParticipantId),
+                        string.IsNullOrWhiteSpace(a.OriginalParticipantNameSnapshot)
+                            ? RequiredText(a.ParticipantNameSnapshot)
+                            : RequiredText(a.OriginalParticipantNameSnapshot),
                         participantId,
                         RequiredText(a.ParticipantNameSnapshot));
                 }));
@@ -133,6 +137,8 @@ public sealed class LocalStorageApplicationStatePersistence(ILocalStorage storag
             e.Assignments.Select(a => new PersistedAssignment(
                 a.TaskDefinitionId,
                 a.TaskNameSnapshot,
+                a.OriginalParticipantId,
+                a.OriginalParticipantNameSnapshot,
                 a.ParticipantId,
                 a.ParticipantNameSnapshot)).ToList())).ToList(),
         schedule.ParticipantTotals.Select(t =>
@@ -167,6 +173,8 @@ public sealed class LocalStorageApplicationStatePersistence(ILocalStorage storag
     private sealed record PersistedAssignment(
         Guid TaskDefinitionId,
         string? TaskNameSnapshot,
+        Guid OriginalParticipantId,
+        string? OriginalParticipantNameSnapshot,
         Guid ParticipantId,
         string? ParticipantNameSnapshot);
     private sealed record PersistedParticipantTotal(Guid ParticipantId, string? ParticipantNameSnapshot, int AssignmentCount);

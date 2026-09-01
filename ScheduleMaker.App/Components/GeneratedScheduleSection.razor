@@ -1,0 +1,347 @@
+@using System.Globalization
+@using ScheduleMaker.App.Application
+@using ScheduleMaker.App.Domain
+@inject ApplicationStateStore StateStore
+@inject ConfigurationStateService ConfigurationStateService
+
+<section class="setup-panel" aria-labelledby="setup-title">
+    <div class="section-header schedule-header">
+        <div>
+            <h2 id="setup-title">Generated schedule</h2>
+            <p class="section-description">@GetGeneratedScheduleDescription()</p>
+        </div>
+        <button type="button"
+                id="generate-schedule"
+                class="primary-action"
+                disabled="@(!Validation.CanGenerate || isGeneratingSchedule)"
+                @onclick="GenerateScheduleAsync">
+            @GetGenerateScheduleActionLabel()
+        </button>
+    </div>
+
+    @if (isGeneratingSchedule)
+    {
+        <p class="empty-state" role="status" aria-live="polite">Generating schedule…</p>
+    }
+
+    @if (!string.IsNullOrWhiteSpace(scheduleGenerationErrorMessage))
+    {
+        <p class="field-error" role="alert">@scheduleGenerationErrorMessage</p>
+    }
+
+    @if (StateStore.Current.LatestSchedule is null)
+    {
+        <p class="empty-state">@GetNoScheduleMessage()</p>
+    }
+    else
+    {
+        var latestSchedule = StateStore.Current.LatestSchedule;
+        <section class="schedule-results" aria-label="Generated schedule results">
+            <div class="schedule-status-panel @(StateStore.Current.IsScheduleStale ? "schedule-status-panel-stale" : "schedule-status-panel-current")"
+                 role="status" aria-live="polite" aria-atomic="true">
+                <p class="schedule-status-label">@GetScheduleStatusLabel(latestSchedule)</p>
+                <p class="schedule-status-message">@GetScheduleStatusMessage(latestSchedule)</p>
+                <p class="schedule-generated-at">Generated @latestSchedule.GeneratedAtUtc.ToLocalTime().ToString("f", CultureInfo.CurrentCulture)</p>
+            </div>
+
+            @if (latestSchedule.Events.Count == 0)
+            {
+                <p class="empty-state">No assignments are available in the latest generated schedule.</p>
+            }
+            else
+            {
+                var participantOptions = StateStore.Current.Participants
+                    .OrderBy(participant => participant.SortOrder)
+                    .ToList();
+
+                <div class="generated-schedule-layout">
+                    <div>
+                        <h3>Assignments by event</h3>
+                        <ol class="generated-schedule-event-list" aria-label="Generated assignments by event">
+                            @foreach (var generatedEvent in latestSchedule.Events)
+                            {
+                                <li class="generated-schedule-event-card" @key="generatedEvent.ScheduledEventId">
+                                    <div class="generated-schedule-event-header">
+                                        <div>
+                                            <p class="scheduled-event-date">@generatedEvent.Date.ToString("MMMM d, yyyy", CultureInfo.CurrentCulture)</p>
+                                            <h4>@generatedEvent.EventTypeNameSnapshot</h4>
+                                        </div>
+                                    </div>
+
+                                    @if (!string.IsNullOrWhiteSpace(generatedEvent.EventDescriptionSnapshot))
+                                    {
+                                        <p class="scheduled-event-description">@generatedEvent.EventDescriptionSnapshot</p>
+                                    }
+
+                                    <ul class="generated-task-list" aria-label="@($"Assignments for {generatedEvent.EventTypeNameSnapshot} on {generatedEvent.Date:MMMM d, yyyy}")">
+                                        @foreach (var assignment in generatedEvent.Assignments)
+                                        {
+                                            var isEditing = IsEditing(generatedEvent.ScheduledEventId, assignment.TaskDefinitionId);
+                                            var editSelectId = GetEditSelectId(generatedEvent.ScheduledEventId, assignment.TaskDefinitionId);
+
+                                            <li @key="assignment.TaskDefinitionId">
+                                                <div class="generated-task-details">
+                                                    <div class="generated-task-title-row">
+                                                        <span class="generated-task-name">@assignment.TaskNameSnapshot</span>
+                                                        @if (assignment.IsManuallyEdited)
+                                                        {
+                                                            <span class="manual-change-badge">Manual change</span>
+                                                        }
+                                                    </div>
+
+                                                    @if (isEditing)
+                                                    {
+                                                        <div class="assignment-edit-panel">
+                                                            <label for="@editSelectId">Assign @assignment.TaskNameSnapshot to</label>
+                                                            <select id="@editSelectId"
+                                                                    class="participant-input"
+                                                                    @bind="editingParticipantId">
+                                                                @foreach (var participant in participantOptions)
+                                                                {
+                                                                    <option value="@participant.Id">@participant.Name</option>
+                                                                }
+                                                            </select>
+
+                                                            @if (!string.IsNullOrWhiteSpace(assignmentEditErrorMessage))
+                                                            {
+                                                                <p class="field-error" role="alert">@assignmentEditErrorMessage</p>
+                                                            }
+
+                                                            <div class="assignment-edit-actions">
+                                                                <button type="button"
+                                                                        class="primary-action"
+                                                                        @onclick="() => SaveAssignmentEditAsync(generatedEvent.ScheduledEventId, assignment.TaskDefinitionId)">
+                                                                    Save
+                                                                </button>
+                                                                <button type="button"
+                                                                        class="secondary-action"
+                                                                        @onclick="CancelAssignmentEdit">
+                                                                    Cancel
+                                                                </button>
+                                                            </div>
+                                                        </div>
+                                                    }
+                                                    else
+                                                    {
+                                                        <div class="generated-task-actions">
+                                                            <span class="generated-task-participant">@assignment.ParticipantNameSnapshot</span>
+                                                            @if (!StateStore.Current.IsScheduleStale)
+                                                            {
+                                                                <button type="button"
+                                                                        class="secondary-action"
+                                                                        aria-label="@($"Edit assignment for {assignment.TaskNameSnapshot} on {generatedEvent.Date:MMMM d, yyyy}")"
+                                                                        @onclick="() => BeginAssignmentEdit(generatedEvent.ScheduledEventId, assignment.TaskDefinitionId, assignment.ParticipantId)">
+                                                                    Edit
+                                                                </button>
+                                                            }
+                                                        </div>
+                                                    }
+                                                </div>
+                                            </li>
+                                        }
+                                    </ul>
+                                </li>
+                            }
+                        </ol>
+                    </div>
+
+                    <div>
+                        <h3>Assignment totals</h3>
+                        <ul class="assignment-total-list" aria-label="Assignment totals by participant">
+                            @foreach (var total in latestSchedule.ParticipantTotals.OrderBy(total => total.ParticipantNameSnapshot, StringComparer.OrdinalIgnoreCase))
+                            {
+                                <li @key="total.ParticipantId">
+                                    <span>@total.ParticipantNameSnapshot</span>
+                                    <strong>@total.AssignmentCount</strong>
+                                </li>
+                            }
+                        </ul>
+                    </div>
+                </div>
+            }
+        </section>
+    }
+
+    @if (Validation.Issues.Count > 0)
+    {
+        <div role="status" aria-live="polite" aria-atomic="true">
+            <ul class="validation-summary" role="list">
+                @foreach (var issue in Validation.Issues)
+                {
+                    <li>@issue.Message</li>
+                }
+            </ul>
+        </div>
+    }
+</section>
+
+@code {
+    [Parameter, EditorRequired]
+    public required ConfigurationValidationResult Validation { get; set; }
+
+    private Guid? editingScheduledEventId;
+    private Guid? editingTaskDefinitionId;
+    private string editingParticipantId = string.Empty;
+    private string? assignmentEditErrorMessage;
+    private string? scheduleGenerationErrorMessage;
+    private bool isGeneratingSchedule;
+
+    protected override void OnParametersSet()
+    {
+        if (StateStore.Current.LatestSchedule is null
+            || StateStore.Current.IsScheduleStale
+            || editingScheduledEventId is null
+            || editingTaskDefinitionId is null)
+        {
+            CancelAssignmentEdit();
+            return;
+        }
+
+        var assignmentExists = StateStore.Current.LatestSchedule.Events.Any(@event =>
+            @event.ScheduledEventId == editingScheduledEventId.Value
+            && @event.Assignments.Any(assignment => assignment.TaskDefinitionId == editingTaskDefinitionId.Value));
+
+        if (!assignmentExists)
+        {
+            CancelAssignmentEdit();
+        }
+    }
+
+    private async Task GenerateScheduleAsync()
+    {
+        scheduleGenerationErrorMessage = null;
+        assignmentEditErrorMessage = null;
+        isGeneratingSchedule = true;
+
+        try
+        {
+            var result = await ConfigurationStateService.GenerateScheduleAsync();
+            if (!result.IsSuccess)
+            {
+                scheduleGenerationErrorMessage = result.ErrorMessage ?? "Schedule generation failed.";
+                return;
+            }
+
+            CancelAssignmentEdit();
+        }
+        finally
+        {
+            isGeneratingSchedule = false;
+        }
+    }
+
+    private void BeginAssignmentEdit(Guid scheduledEventId, Guid taskDefinitionId, Guid participantId)
+    {
+        editingScheduledEventId = scheduledEventId;
+        editingTaskDefinitionId = taskDefinitionId;
+        editingParticipantId = participantId.ToString();
+        assignmentEditErrorMessage = null;
+        scheduleGenerationErrorMessage = null;
+    }
+
+    private void CancelAssignmentEdit()
+    {
+        editingScheduledEventId = null;
+        editingTaskDefinitionId = null;
+        editingParticipantId = string.Empty;
+        assignmentEditErrorMessage = null;
+    }
+
+    private async Task SaveAssignmentEditAsync(Guid scheduledEventId, Guid taskDefinitionId)
+    {
+        assignmentEditErrorMessage = null;
+
+        if (!Guid.TryParse(editingParticipantId, out var participantId))
+        {
+            assignmentEditErrorMessage = "Select an existing participant.";
+            return;
+        }
+
+        var result = await ConfigurationStateService.EditGeneratedTaskAssignmentAsync(
+            scheduledEventId,
+            taskDefinitionId,
+            participantId);
+
+        if (result.IsSuccess)
+        {
+            scheduleGenerationErrorMessage = null;
+            CancelAssignmentEdit();
+            return;
+        }
+
+        assignmentEditErrorMessage = result.ErrorMessage ?? "Assignment could not be updated.";
+    }
+
+    private bool IsEditing(Guid scheduledEventId, Guid taskDefinitionId) =>
+        editingScheduledEventId == scheduledEventId && editingTaskDefinitionId == taskDefinitionId;
+
+    private string GetEditSelectId(Guid scheduledEventId, Guid taskDefinitionId) =>
+        $"assignment-participant-{scheduledEventId:N}-{taskDefinitionId:N}";
+
+    private string GetGenerateScheduleActionLabel()
+    {
+        if (isGeneratingSchedule)
+        {
+            return "Generating schedule…";
+        }
+
+        return StateStore.Current.LatestSchedule is null
+            ? "Generate schedule"
+            : "Regenerate schedule";
+    }
+
+    private string GetNoScheduleMessage() =>
+        Validation.CanGenerate
+            ? "No schedule has been generated yet. Select Generate schedule to create one."
+            : "No schedule has been generated yet. Complete the setup steps below to create one.";
+
+    private string GetGeneratedScheduleDescription()
+    {
+        var latestSchedule = StateStore.Current.LatestSchedule;
+        if (latestSchedule is null)
+        {
+            return Validation.NextStepMessage;
+        }
+
+        if (StateStore.Current.IsScheduleStale)
+        {
+            return "Review the latest assignments below, then regenerate when you are ready.";
+        }
+
+        return latestSchedule.HasManualChanges
+            ? "Review the latest assignments, save any manual changes, or regenerate when you are ready."
+            : "Review the latest generated assignments and totals below.";
+    }
+
+    private string GetScheduleStatusLabel(GeneratedSchedule latestSchedule)
+    {
+        if (StateStore.Current.IsScheduleStale)
+        {
+            return latestSchedule.HasManualChanges
+                ? "Stale schedule with manual changes"
+                : "Stale schedule";
+        }
+
+        return latestSchedule.HasManualChanges
+            ? "Current schedule with manual changes"
+            : "Current schedule";
+    }
+
+    private string GetScheduleStatusMessage(GeneratedSchedule latestSchedule)
+    {
+        if (!StateStore.Current.IsScheduleStale)
+        {
+            return latestSchedule.HasManualChanges
+                ? "This schedule matches your current configuration and includes manual assignment changes. Regenerate to return to generated assignments."
+                : "This schedule matches your current configuration.";
+        }
+
+        return latestSchedule.HasManualChanges
+            ? Validation.CanGenerate
+                ? "Configuration changed since this schedule was generated. Manual assignment changes are still shown below. Regenerate to replace them with fresh assignments."
+                : "Configuration changed since this schedule was generated. Fix the validation issues below, then generate again to replace the manual assignment changes."
+            : Validation.CanGenerate
+                ? "Configuration changed since this schedule was generated. Regenerate to refresh the assignments."
+                : "Configuration changed since this schedule was generated. Fix the validation issues below, then generate again.";
+    }
+}

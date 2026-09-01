@@ -103,6 +103,8 @@ public sealed class GeneratedSchedule
     public IReadOnlyList<GeneratedScheduleEvent> Events { get; }
 
     public IReadOnlyList<ParticipantAssignmentTotal> ParticipantTotals { get; }
+
+    public bool HasManualChanges => Events.SelectMany(@event => @event.Assignments).Any(assignment => assignment.IsManuallyEdited);
 }
 
 public sealed class GeneratedScheduleEvent
@@ -143,9 +145,28 @@ public sealed class GeneratedTaskAssignment
         string taskNameSnapshot,
         Guid participantId,
         string participantNameSnapshot)
+        : this(
+            taskDefinitionId,
+            taskNameSnapshot,
+            participantId,
+            participantNameSnapshot,
+            participantId,
+            participantNameSnapshot)
+    {
+    }
+
+    public GeneratedTaskAssignment(
+        Guid taskDefinitionId,
+        string taskNameSnapshot,
+        Guid originalParticipantId,
+        string originalParticipantNameSnapshot,
+        Guid participantId,
+        string participantNameSnapshot)
     {
         TaskDefinitionId = taskDefinitionId;
         TaskNameSnapshot = DomainValidation.RequireNonEmpty(taskNameSnapshot, nameof(taskNameSnapshot));
+        OriginalParticipantId = originalParticipantId;
+        OriginalParticipantNameSnapshot = DomainValidation.RequireNonEmpty(originalParticipantNameSnapshot, nameof(originalParticipantNameSnapshot));
         ParticipantId = participantId;
         ParticipantNameSnapshot = DomainValidation.RequireNonEmpty(participantNameSnapshot, nameof(participantNameSnapshot));
     }
@@ -154,9 +175,15 @@ public sealed class GeneratedTaskAssignment
 
     public string TaskNameSnapshot { get; }
 
+    public Guid OriginalParticipantId { get; }
+
+    public string OriginalParticipantNameSnapshot { get; }
+
     public Guid ParticipantId { get; }
 
     public string ParticipantNameSnapshot { get; }
+
+    public bool IsManuallyEdited => ParticipantId != OriginalParticipantId;
 }
 
 public sealed class ParticipantAssignmentTotal
