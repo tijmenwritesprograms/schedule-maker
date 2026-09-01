@@ -4,6 +4,12 @@ namespace ScheduleMaker.App.Application;
 
 public sealed record EventTypeTaskUpdate(Guid? Id, string Name);
 
+public enum RecurrenceInterval
+{
+    Weekly = 1,
+    Biweekly = 2
+}
+
 public sealed class ConfigurationStateService(ApplicationStateStore stateStore)
 {
     public ConfigurationValidationResult ValidateCurrentConfiguration() =>
@@ -291,6 +297,91 @@ public sealed class ConfigurationStateService(ApplicationStateStore stateStore)
 
         var insertIndex = scheduledEvents.FindLastIndex(existingEvent => existingEvent.Date <= date) + 1;
         scheduledEvents.Insert(insertIndex, scheduledEvent);
+
+        await ReplaceStateAsync(
+            participants: stateStore.Current.Participants,
+            eventTypes: stateStore.Current.EventTypes,
+            scheduledEvents: scheduledEvents,
+            scheduleChanged: true,
+            cancellationToken);
+        return ApplicationOperationResult.Success();
+    }
+
+    public Task<ApplicationOperationResult> AddRecurringScheduledEventsAsync(
+        DateOnly? startDate,
+        DateOnly? endDate,
+        Guid eventTypeId,
+        int intervalWeeks,
+        string? description,
+        CancellationToken cancellationToken = default) =>
+        intervalWeeks is 1 or 2
+            ? AddRecurringScheduledEventsAsync(
+                startDate,
+                endDate,
+                eventTypeId,
+                (RecurrenceInterval)intervalWeeks,
+                description,
+                cancellationToken)
+            : Task.FromResult(ApplicationOperationResult.Failure("Choose a weekly or biweekly recurrence interval."));
+
+    public async Task<ApplicationOperationResult> AddRecurringScheduledEventsAsync(
+        DateOnly? startDate,
+        DateOnly? endDate,
+        Guid eventTypeId,
+        RecurrenceInterval interval,
+        string? description,
+        CancellationToken cancellationToken = default)
+    {
+        if (startDate is null || endDate is null)
+        {
+            return ApplicationOperationResult.Failure("Choose a start and end date.");
+        }
+
+        if (endDate < startDate)
+        {
+            return ApplicationOperationResult.Failure("End date cannot be earlier than the start date.");
+        }
+
+        if (interval is not (RecurrenceInterval.Weekly or RecurrenceInterval.Biweekly))
+        {
+            return ApplicationOperationResult.Failure("Choose a weekly or biweekly recurrence interval.");
+        }
+
+        if (!stateStore.Current.EventTypes.Any(eventType => eventType.Id == eventTypeId))
+        {
+            return ApplicationOperationResult.Failure("Event type was not found.");
+        }
+
+        var normalizedDescription = NormalizeOptionalText(description);
+        if (normalizedDescription is not null && normalizedDescription.Length > 500)
+        {
+            return ApplicationOperationResult.Failure("Description cannot be longer than 500 characters.");
+        }
+
+        var existingEvents = stateStore.Current.ScheduledEvents.ToList();
+        var existingDefinitions = existingEvents
+            .Select(scheduledEvent => (scheduledEvent.EventTypeId, scheduledEvent.Date))
+            .ToHashSet();
+        var occurrences = new List<ScheduledEvent>();
+        var step = interval == RecurrenceInterval.Weekly ? 7 : 14;
+
+        for (var date = startDate.Value; date <= endDate.Value; date = date.AddDays(step))
+        {
+            if (existingDefinitions.Add((eventTypeId, date)))
+            {
+                occurrences.Add(new ScheduledEvent(Guid.NewGuid(), date, eventTypeId, normalizedDescription));
+            }
+        }
+
+        if (occurrences.Count == 0)
+        {
+            return ApplicationOperationResult.Success();
+        }
+
+        var scheduledEvents = existingEvents
+            .Concat(occurrences)
+            .OrderBy(scheduledEvent => scheduledEvent.Date)
+            .ToList();
 
         await ReplaceStateAsync(
             participants: stateStore.Current.Participants,
