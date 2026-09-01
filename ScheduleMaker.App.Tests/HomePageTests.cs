@@ -145,18 +145,14 @@ public sealed class HomePageTests
     }
 
     [Fact]
-    public void HomePage_Adds_Weekly_Events_Through_Inclusive_End_Date()
+    public async Task HomePage_Adds_Weekly_Events_Through_Inclusive_End_Date()
     {
         using var context = CreateContext();
-        var cut = context.Render<Home>();
-
-        AddParticipant(cut, "Alex");
-        var eventTypeForm = cut.FindAll("form.participant-form")[1];
-        eventTypeForm.QuerySelector("#event-type-name")!.Input("Practice");
-        eventTypeForm.Submit();
+        var service = context.Services.GetRequiredService<ConfigurationStateService>();
+        await service.AddEventTypeAsync("Practice");
         var eventType = context.Services.GetRequiredService<ApplicationStateStore>().Current.EventTypes.Single();
-
-        AddTask(cut, eventType.Id, "Setup");
+        await service.AddTaskAsync(eventType.Id, "Setup");
+        var cut = context.Render<ScheduleManagementPage>();
         cut.Find("#scheduled-event-date").Change("2026-09-01");
         cut.Find("#scheduled-event-type").Change(eventType.Id.ToString());
         cut.Find("#recurrence-interval").Change("1");
@@ -169,6 +165,47 @@ public sealed class HomePageTests
             [new DateOnly(2026, 9, 1), new DateOnly(2026, 9, 8), new DateOnly(2026, 9, 15)],
             events.Select(@event => @event.Date));
         Assert.All(events, @event => Assert.Equal("Weekly practice", @event.Description));
+    }
+
+    [Fact]
+    public async Task HomePage_Requires_Repeat_Until_Date_For_Recurring_Events()
+    {
+        using var context = CreateContext();
+        var service = context.Services.GetRequiredService<ConfigurationStateService>();
+        await service.AddEventTypeAsync("Practice");
+        var eventType = context.Services.GetRequiredService<ApplicationStateStore>().Current.EventTypes.Single();
+        await service.AddTaskAsync(eventType.Id, "Setup");
+        var cut = context.Render<ScheduleManagementPage>();
+        cut.Find("#scheduled-event-date").Change("2026-09-01");
+        cut.Find("#scheduled-event-type").Change(eventType.Id.ToString());
+        cut.Find("#recurrence-interval").Change("1");
+        cut.Find("form.event-form").Submit();
+
+        Assert.Contains("Choose a repeat-until date.", cut.Markup);
+        Assert.Empty(context.Services.GetRequiredService<ApplicationStateStore>().Current.ScheduledEvents);
+    }
+
+    [Fact]
+    public async Task HomePage_Adds_Biweekly_Events_Through_Inclusive_End_Date()
+    {
+        using var context = CreateContext();
+        var service = context.Services.GetRequiredService<ConfigurationStateService>();
+        await service.AddEventTypeAsync("Practice");
+        var eventType = context.Services.GetRequiredService<ApplicationStateStore>().Current.EventTypes.Single();
+        await service.AddTaskAsync(eventType.Id, "Setup");
+        var cut = context.Render<ScheduleManagementPage>();
+        cut.Find("#scheduled-event-date").Change("2026-09-01");
+        cut.Find("#scheduled-event-type").Change(eventType.Id.ToString());
+        cut.Find("#recurrence-interval").Change("2");
+        cut.Find("#recurrence-end-date").Change("2026-09-29");
+        cut.Find("#scheduled-event-description").Change("Biweekly practice");
+        cut.Find("form.event-form").Submit();
+
+        var events = context.Services.GetRequiredService<ApplicationStateStore>().Current.ScheduledEvents;
+        Assert.Equal(
+            [new DateOnly(2026, 9, 1), new DateOnly(2026, 9, 15), new DateOnly(2026, 9, 29)],
+            events.Select(@event => @event.Date));
+        Assert.All(events, @event => Assert.Equal("Biweekly practice", @event.Description));
     }
 
     private static void AddParticipant(IRenderedComponent<Home> cut, string name)

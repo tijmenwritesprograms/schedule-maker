@@ -320,11 +320,16 @@
             recurrenceErrorMessage = "Choose a weekly or biweekly recurrence interval.";
             return;
         }
+        else if (recurrenceEndDate is null)
+        {
+            recurrenceErrorMessage = "Choose a repeat-until date.";
+            return;
+        }
         else
         {
             result = await ConfigurationStateService.AddRecurringScheduledEventsAsync(
                 date,
-                recurrenceEndDate is null ? null : DateOnly.FromDateTime(recurrenceEndDate.Value),
+                DateOnly.FromDateTime(recurrenceEndDate.Value),
                 eventTypeId,
                 intervalWeeks,
                 scheduledEventDescription);
