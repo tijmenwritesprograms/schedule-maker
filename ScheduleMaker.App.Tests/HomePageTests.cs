@@ -208,6 +208,63 @@ public sealed class HomePageTests
         Assert.All(events, @event => Assert.Equal("Biweekly practice", @event.Description));
     }
 
+    [Fact]
+    public void ScheduleManagementPage_Can_Edit_Assignments_Cancel_And_Regenerate()
+    {
+        using var context = CreateContext();
+        var cut = context.Render<Home>();
+
+        AddParticipant(cut, "Alex");
+        AddParticipant(cut, "Jamie");
+        var eventTypeForm = cut.FindAll("form.participant-form")[1];
+        eventTypeForm.QuerySelector("#event-type-name")!.Input("Practice");
+        eventTypeForm.Submit();
+        var eventType = context.Services.GetRequiredService<ApplicationStateStore>().Current.EventTypes.Single();
+        AddTask(cut, eventType.Id, "Setup");
+        AddTask(cut, eventType.Id, "Cleanup");
+        var updatedEventType = context.Services.GetRequiredService<ApplicationStateStore>().Current.EventTypes.Single();
+        cut.Find("#scheduled-event-date").Change("2026-09-01");
+        cut.Find("#scheduled-event-type").Change(eventType.Id.ToString());
+        cut.Find("form.event-form").Submit();
+
+        var schedulePage = context.Render<ScheduleManagementPage>();
+        schedulePage.Find("#generate-schedule").Click();
+
+        schedulePage.Find("button[aria-label='Edit assignment for Setup on September 1, 2026']").Click();
+        schedulePage.Find($"#assignment-participant-{context.Services.GetRequiredService<ApplicationStateStore>().Current.LatestSchedule!.Events[0].ScheduledEventId:N}-{updatedEventType.Tasks[0].Id:N}").Change(
+            context.Services.GetRequiredService<ApplicationStateStore>().Current.Participants[1].Id.ToString());
+        schedulePage.FindAll("button").Single(button => button.TextContent.Trim() == "Save").Click();
+
+        Assert.Contains("Current schedule with manual changes", schedulePage.Markup);
+        Assert.Contains("Manual change", schedulePage.Markup);
+        Assert.Contains("Jamie", schedulePage.Markup);
+        Assert.Contains("<strong>0</strong>", schedulePage.Markup);
+        Assert.Contains("<strong>2</strong>", schedulePage.Markup);
+
+        schedulePage.Find("button[aria-label='Edit assignment for Cleanup on September 1, 2026']").Click();
+        schedulePage.FindAll("button").Single(button => button.TextContent.Trim() == "Cancel").Click();
+        Assert.DoesNotContain("Assign Cleanup to", schedulePage.Markup);
+
+        schedulePage.Find("button[aria-label='Edit assignment for Setup on September 1, 2026']").Click();
+        schedulePage.Find($"#assignment-participant-{context.Services.GetRequiredService<ApplicationStateStore>().Current.LatestSchedule!.Events[0].ScheduledEventId:N}-{updatedEventType.Tasks[0].Id:N}").Change(
+            context.Services.GetRequiredService<ApplicationStateStore>().Current.Participants[0].Id.ToString());
+        schedulePage.FindAll("button").Single(button => button.TextContent.Trim() == "Save").Click();
+
+        Assert.Contains("Current schedule", schedulePage.Markup);
+        Assert.DoesNotContain("Current schedule with manual changes", schedulePage.Markup);
+
+        schedulePage.Find("button[aria-label='Edit assignment for Setup on September 1, 2026']").Click();
+        schedulePage.Find($"#assignment-participant-{context.Services.GetRequiredService<ApplicationStateStore>().Current.LatestSchedule!.Events[0].ScheduledEventId:N}-{updatedEventType.Tasks[0].Id:N}").Change(
+            context.Services.GetRequiredService<ApplicationStateStore>().Current.Participants[1].Id.ToString());
+        schedulePage.FindAll("button").Single(button => button.TextContent.Trim() == "Save").Click();
+        schedulePage.Find("#generate-schedule").Click();
+
+        Assert.Contains("Current schedule", schedulePage.Markup);
+        Assert.DoesNotContain("Current schedule with manual changes", schedulePage.Markup);
+        Assert.DoesNotContain("Manual change", schedulePage.Markup);
+        Assert.Contains("Alex", schedulePage.Markup);
+    }
+
     private static void AddParticipant(IRenderedComponent<Home> cut, string name)
     {
         cut.Find("#participant-name").Input(name);
