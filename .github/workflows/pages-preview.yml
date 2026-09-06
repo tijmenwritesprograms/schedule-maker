@@ -56,6 +56,7 @@ jobs:
     permissions:
       pages: write
       id-token: write
+      pull-requests: write
     environment:
       name: preview-pr-${{ github.event.pull_request.number }}
       url: ${{ steps.deployment.outputs.page_url }}
@@ -65,3 +66,40 @@ jobs:
         uses: actions/deploy-pages@v4
         with:
           preview: true
+
+      - name: Comment preview URL on pull request
+        uses: actions/github-script@v7
+        env:
+          PREVIEW_URL: ${{ steps.deployment.outputs.page_url }}
+        with:
+          script: |
+            const marker = '<!-- schedule-maker-preview -->';
+            if (!process.env.PREVIEW_URL) {
+              core.setFailed('The deployment did not provide a preview URL.');
+              return;
+            }
+            const body = `${marker}\n### Schedule Maker preview\n\n[Open the deployed preview](${process.env.PREVIEW_URL})`;
+            const comments = await github.paginate(github.rest.issues.listComments, {
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number
+            });
+            const existingComment = comments.find(comment =>
+              comment.user.type === 'Bot' && comment.body.includes(marker)
+            );
+
+            if (existingComment) {
+              await github.rest.issues.updateComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                comment_id: existingComment.id,
+                body
+              });
+            } else {
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: context.issue.number,
+                body
+              });
+            }
