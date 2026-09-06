@@ -19,7 +19,7 @@ public sealed class ScreenNavigationTests
         Assert.Contains("Participants", cut.Markup);
         Assert.Contains("Event types", cut.Markup);
         Assert.DoesNotContain("Dated events", cut.Markup);
-        Assert.Contains("href=\"/schedule\"", cut.Markup);
+        Assert.Contains("href=\"schedule\"", cut.Markup);
     }
 
     [Fact]
@@ -33,7 +33,7 @@ public sealed class ScreenNavigationTests
         Assert.Contains("Dated events", cut.Markup);
         Assert.Contains("Generated schedule", cut.Markup);
         Assert.DoesNotContain("Add your first participant", cut.Markup);
-        Assert.Contains("href=\"/team\"", cut.Markup);
+        Assert.Contains("href=\"team\"", cut.Markup);
     }
 
     private static BunitContext CreateContext()
