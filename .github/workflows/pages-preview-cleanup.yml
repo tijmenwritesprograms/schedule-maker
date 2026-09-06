@@ -1,0 +1,56 @@
+name: Clean up pull request preview
+
+on:
+  pull_request:
+    types:
+      - closed
+
+permissions:
+  contents: read
+
+concurrency:
+  group: pages-preview-${{ github.event.pull_request.number }}
+  cancel-in-progress: false
+
+jobs:
+  cleanup:
+    runs-on: ubuntu-latest
+    permissions:
+      deployments: write
+    steps:
+      - name: Remove preview deployments and environment
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const environment = `preview-pr-${context.payload.pull_request.number}`;
+            const deployments = await github.paginate(github.rest.repos.listDeployments, {
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              environment
+            });
+
+            for (const deployment of deployments) {
+              await github.rest.repos.createDeploymentStatus({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                deployment_id: deployment.id,
+                state: 'inactive'
+              });
+              await github.rest.repos.deleteDeployment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                deployment_id: deployment.id
+              });
+            }
+
+            try {
+              await github.rest.repos.deleteAnEnvironment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                environment_name: environment
+              });
+            } catch (error) {
+              if (error.status !== 404) {
+                throw error;
+              }
+            }
